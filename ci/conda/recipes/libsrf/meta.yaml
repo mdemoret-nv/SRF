@@ -116,6 +116,52 @@ outputs:
       files:
         - build/**/*.x
 
+  - name: libsrf-devel
+    build:
+      string: cuda_{{ cuda_version }}_h{{ PKG_HASH }}_{{ PKG_BUILDNUM }}
+      include_recipe: False
+      run_exports:
+        strong:
+          - {{ pin_subpackage("libsrf", max_pin="x.x") }}
+    requirements:
+      host:
+        # Any libraries with weak run_exports need to go here to be added to the run. Keep sorted!
+        - autoconf >=2.69
+        - ccache
+        - cmake 3.22.*
+        - cuda-nvml-dev {{ cuda_version }}.*
+        - cython 0.29.*
+        - doxygen 1.9.2.*
+        - gmock 1.10.*
+        - gtest 1.10.*
+        - libtool
+        - ninja
+        - numactl-libs-cos7-x86_64
+        - pkg-config 0.29.*
+        - spdlog 1.8.5
+        - sysroot_linux-64 >=2.17
+
+      run:
+        # Manually add any packages necessary for run that do not have run_exports. Keep sorted!
+        - {{ compiler("c") }}
+        - {{ compiler("cuda") }}
+        - {{ compiler("cxx") }}
+        - {{ pin_subpackage('libsrf', exact=True) }}
+        - autoconf >=2.69
+        - ccache
+        - cmake 3.22.*
+        - cuda-nvml-dev {{ cuda_version }}.*
+        - cudatoolkit {{ cuda_version }}.*
+        - cython 0.29.*
+        - doxygen 1.9.2.*
+        - gmock 1.10.*
+        - gtest 1.10.*
+        - libtool
+        - ninja
+        - numactl-libs-cos7-x86_64
+        - pkg-config 0.29.*
+        - sysroot_linux-64 >=2.17
+
   - name: srf
     build:
       string: cuda_{{ cuda_version }}_py{{ py_version }}_h{{ PKG_HASH }}_{{ PKG_BUILDNUM }}
