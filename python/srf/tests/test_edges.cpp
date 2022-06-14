@@ -26,8 +26,10 @@
 #include <srf/node/source_properties.hpp>
 #include <srf/segment/builder.hpp>
 #include <srf/segment/object.hpp>
+#include <srf/utils/string_utils.hpp>
 
 #include <pybind11/cast.h>
+#include <pybind11/gil.h>
 #include <pybind11/pybind11.h>
 #include <pybind11/pytypes.h>
 #include <rxcpp/rx-includes.hpp>
@@ -54,13 +56,19 @@ namespace py    = pybind11;
 namespace pysrf = srf::pysrf;
 
 struct Base
-{};
+{
+    Base(std::string n = "") : name(std::move(n)) {}
+    std::string name{""};
+};
 
 struct DerivedA : public Base
 {};
 
 struct DerivedB : public Base
-{};
+{
+    DerivedB(std::string n = "", int v = 0) : Base(std::move(n)), value(v) {}
+    int value{0};
+};
 
 class SourceDerivedB : public pysrf::PythonSource<std::shared_ptr<DerivedB>>
 {
@@ -78,7 +86,7 @@ class SourceDerivedB : public pysrf::PythonSource<std::shared_ptr<DerivedB>>
         return [this](rxcpp::subscriber<std::shared_ptr<DerivedB>>& output) {
             for (size_t i = 0; i < 5; ++i)
             {
-                output.on_next(std::make_shared<DerivedB>());
+                output.on_next(std::make_shared<DerivedB>(CONCAT_STR("Instance-" << i), i));
             }
         };
     }
@@ -172,7 +180,10 @@ class SinkBase : public pysrf::PythonSink<std::shared_ptr<Base>>
     {
         return rxcpp::make_observer_dynamic<sink_type_t>(
             [](sink_type_t x) {
+                py::gil_scoped_acquire gil;
 
+                // Just print the name
+                py::print(CONCAT_STR("Got Base: Name: '" << x->name << "'"));
             },
             [](std::exception_ptr ex) {},
             []() {
@@ -193,18 +204,19 @@ PYBIND11_MODULE(test_edges_cpp, m)
 
     pysrf::import(m, "srf");
 
-    py::class_<Base, std::shared_ptr<Base>>(m, "Base").def(py::init<>([]() { return std::make_shared<Base>(); }));
+    py::class_<Base, std::shared_ptr<Base>>(m, "Base")
+        .def(py::init<>([](std::string name = "") { return std::make_shared<Base>(name); }), py::arg("name") = "")
+        .def_readwrite("name", &DerivedB::name);
 
     py::class_<DerivedA, Base, std::shared_ptr<DerivedA>>(m, "DerivedA").def(py::init<>([]() {
         return std::make_shared<DerivedA>();
     }));
 
-    py::class_<DerivedB, Base, std::shared_ptr<DerivedB>>(m, "DerivedB").def(py::init<>([]() {
-        return std::make_shared<DerivedB>();
-    }));
-
-    srf::node::EdgeConnector<py::object, pysrf::PyObjectHolder>::register_converter();
-    srf::node::EdgeConnector<pysrf::PyObjectHolder, py::object>::register_converter();
+    py::class_<DerivedB, Base, std::shared_ptr<DerivedB>>(m, "DerivedB")
+        .def(py::init<>([](std::string name = "", int value = 0) { return std::make_shared<DerivedB>(name, value); }),
+             py::arg("name")  = "",
+             py::arg("value") = 0)
+        .def_readwrite("value", &DerivedB::value);
 
     py::class_<segment::Object<SourceDerivedB>,
                srf::segment::ObjectProperties,

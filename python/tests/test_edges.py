@@ -13,11 +13,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import dataclasses
+
 import srf
 import srf.tests.test_edges_cpp as m
+from srf.core.pipeline import IngressPorts
 
 
 def test_connect_cpp_edges():
+
     def segment_init(seg: srf.Builder):
         source = m.SourceDerivedB(seg, "source")
 
@@ -46,6 +50,7 @@ def test_connect_cpp_edges():
 
 
 def test_edge_cpp_to_cpp_same():
+
     def segment_init(seg: srf.Builder):
         source = m.SourceDerivedB(seg, "source")
 
@@ -74,6 +79,7 @@ def test_edge_cpp_to_cpp_same():
 
 
 def test_edge_cpp_to_py_same():
+
     def segment_init(seg: srf.Builder):
         source = m.SourceDerivedB(seg, "source")
 
@@ -108,7 +114,9 @@ def test_edge_cpp_to_py_same():
 
 
 def test_edge_py_to_cpp_same():
+
     def segment_init(seg: srf.Builder):
+
         def source_fn():
             yield m.DerivedB()
             yield m.DerivedB()
@@ -142,6 +150,7 @@ def test_edge_wrapper():
     on_next_count = 0
 
     def segment_init(seg: srf.Builder):
+
         def create_source():
 
             yield 1
@@ -188,6 +197,87 @@ def test_edge_wrapper():
     executor.join()
 
     assert on_next_count == 4
+
+
+@dataclasses.dataclass
+class MyCustomClass:
+
+    value: int
+    name: str
+
+
+def test_multi_segment():
+
+    def segment_source(seg: srf.Builder):
+
+        # Use a generator function as the source
+        def source_gen():
+
+            print("Source: Starting")
+            for i in range(5):
+
+                yield MyCustomClass(i, "Instance-{}".format(i))
+                # yield m.DerivedA()
+
+            print("Source: Complete")
+
+        # Create the source object
+        # source = seg.make_source("source", source_gen)
+        source = m.SourceDerivedB(seg, "source")
+        source.launch_options.pe_count = 1
+
+        egress = seg.get_egress("port1")
+
+        seg.make_edge(source, egress)
+
+    def segment_sink(seg: srf.Builder):
+
+        ingress = seg.get_ingress("port1")
+
+        # This method will get called each time the sink gets a value
+        def sink_on_next(x: MyCustomClass):
+
+            print("Sink: Got Obj Name: {}, Value: {}".format(x.name, x.value))
+
+        # Build the sink object
+        # sink = seg.make_sink("sink", sink_on_next, None, None)
+        sink = m.SinkBase(seg, "sink")
+
+        seg.make_edge(ingress, sink)
+
+    srf.Config.default_channel_size = 4
+
+    # Create the pipeline object
+    pipeline = srf.Pipeline()
+
+    ingress_ports = IngressPorts(("port1", m.DerivedB), ("port2", int))
+
+    pipeline.test_types(m.DerivedB)
+
+    # Create a segment
+    pipeline.make_segment("segment_source", srf.IngressPorts(("port1", m.DerivedB)), ["port1"], segment_source)
+
+    pipeline.make_segment("segment_sink", ["port1"], [], segment_sink)
+
+    # Build executor options
+    options = srf.Options()
+
+    # Set to 1 thread
+    options.topology.user_cpuset = "0-1"
+
+    # Create the executor
+    executor = srf.Executor(options)
+
+    # Register pipeline to tell executor what to run
+    executor.register_pipeline(pipeline)
+
+    # This will start the pipeline and return immediately
+    executor.start()
+
+    # Wait for the pipeline to exit on its own
+    executor.join()
+
+    print("Pipeline exited!")
 
 
 if (__name__ == "__main__"):

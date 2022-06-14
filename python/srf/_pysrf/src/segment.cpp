@@ -25,7 +25,7 @@
 #include <srf/node/edge_builder.hpp>
 #include <srf/runnable/context.hpp>
 #include <srf/segment/builder.hpp>
-#include <srf/segment/egress_port.hpp> // Included because we do a dynamic cast on get_egress
+#include <srf/segment/egress_port.hpp>  // Included because we do a dynamic cast on get_egress
 #include <srf/segment/ingress_port.hpp>
 #include <srf/segment/object.hpp>
 
@@ -212,18 +212,16 @@ std::shared_ptr<srf::segment::ObjectProperties> SegmentProxy::make_sink(srf::seg
         name, rxcpp::make_observer<PyHolder>(on_next_w, on_error_w, on_completed_w));
 }
 
-std::shared_ptr<srf::segment::ObjectProperties> SegmentProxy::get_ingress(
-    srf::segment::Builder& self,
-    const std::string& name)
+std::shared_ptr<srf::segment::ObjectProperties> SegmentProxy::get_ingress(srf::segment::Builder& self,
+                                                                          const std::string& name)
 {
-    return self.get_ingress<py::object>(name);
+    return self.get_ingress<PyHolder>(name);
 }
 
-std::shared_ptr<srf::segment::ObjectProperties> SegmentProxy::get_egress(
-    srf::segment::Builder& self,
-    const std::string& name)
+std::shared_ptr<srf::segment::ObjectProperties> SegmentProxy::get_egress(srf::segment::Builder& self,
+                                                                         const std::string& name)
 {
-   return self.get_egress<py::object>(name);
+    return self.get_egress<PyHolder>(name);
 }
 
 /*

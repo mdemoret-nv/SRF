@@ -108,8 +108,8 @@ class Pipeline final : public internal::pipeline::IPipeline
      */
     template <typename... InputTypesT, typename... OutputTypesT>
     std::shared_ptr<segment::Definition> make_segment(const std::string& segment_name,
-                                                      segment::IngressPorts<InputTypesT...> ingress_ports,
-                                                      segment::EgressPorts<OutputTypesT...> egress_ports,
+                                                      segment::IngressPortsBase ingress_ports,
+                                                      segment::EgressPortsBase egress_ports,
                                                       segment::Definition::initializer_fn_t segment_initializer)
     {
         auto segdef = segment::Definition::create(segment_name, ingress_ports, egress_ports, segment_initializer);
@@ -131,7 +131,7 @@ class Pipeline final : public internal::pipeline::IPipeline
      */
     template <typename... InputTypesT>
     std::shared_ptr<segment::Definition> make_segment(const std::string& segment_name,
-                                                      segment::IngressPorts<InputTypesT...> ingress_ports,
+                                                      segment::IngressPortsBase ingress_ports,
                                                       segment::Definition::initializer_fn_t segment_initializer)
     {
         auto segdef = segment::Definition::create(segment_name, ingress_ports, segment_initializer);
@@ -153,7 +153,7 @@ class Pipeline final : public internal::pipeline::IPipeline
      */
     template <typename... OutputTypesT>
     std::shared_ptr<segment::Definition> make_segment(const std::string& segment_name,
-                                                      segment::EgressPorts<OutputTypesT...> egress_ports,
+                                                      segment::EgressPortsBase egress_ports,
                                                       segment::Definition::initializer_fn_t segment_initializer)
     {
         auto segdef = segment::Definition::create(segment_name, egress_ports, segment_initializer);

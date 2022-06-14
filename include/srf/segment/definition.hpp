@@ -54,27 +54,24 @@ class Definition final : public internal::segment::IDefinition
     DELETE_COPYABILITY(Definition);
     DELETE_MOVEABILITY(Definition);
 
-    template <typename... InputsT, typename... OutputsT>
     static std::shared_ptr<Definition> create(std::string name,
-                                              IngressPorts<InputsT...> ingress_ports,
-                                              EgressPorts<OutputsT...> egress_ports,
+                                              IngressPortsBase ingress_ports,
+                                              EgressPortsBase egress_ports,
                                               initializer_fn_t initializer)
     {
         return Definition::create(
             std::move(name), ingress_ports.m_initializers, egress_ports.m_initializers, std::move(initializer));
     }
 
-    template <typename... OutputsT>
     static std::shared_ptr<Definition> create(std::string name,
-                                              EgressPorts<OutputsT...> egress_ports,
+                                              EgressPortsBase egress_ports,
                                               initializer_fn_t initializer)
     {
         return Definition::create(std::move(name), {}, egress_ports.m_initializers, std::move(initializer));
     }
 
-    template <typename... InputsT>
     static std::shared_ptr<Definition> create(std::string name,
-                                              IngressPorts<InputsT...> ingress_ports,
+                                              IngressPortsBase ingress_ports,
                                               initializer_fn_t initializer)
     {
         return Definition::create(std::move(name), ingress_ports.m_initializers, {}, std::move(initializer));
@@ -82,7 +79,10 @@ class Definition final : public internal::segment::IDefinition
 
     static std::shared_ptr<Definition> create(std::string name, initializer_fn_t initializer)
     {
-        return Definition::create(std::move(name), {}, {}, std::move(initializer));
+        return Definition::create(std::move(name),
+                                  std::map<std::string, ingress_initializer_t>{},
+                                  std::map<std::string, egress_initializer_t>{},
+                                  std::move(initializer));
     }
 };
 

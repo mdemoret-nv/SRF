@@ -221,7 +221,7 @@ std::shared_ptr<Object<node::SinkProperties<T>>> Builder::get_egress(std::string
         throw exceptions::SrfRuntimeError("egress port name not found: " + name);
     }
 
-    auto port = std::dynamic_pointer_cast<EgressPort<T>>(base);
+    auto port = std::dynamic_pointer_cast<Object<node::SinkProperties<T>>>(base);
     if (port == nullptr)
     {
         throw exceptions::SrfRuntimeError("egress port type mismatch: " + name);
@@ -239,7 +239,7 @@ std::shared_ptr<Object<node::SourceProperties<T>>> Builder::get_ingress(std::str
         throw exceptions::SrfRuntimeError("ingress port name not found: " + name);
     }
 
-    auto port = std::dynamic_pointer_cast<IngressPort<T>>(base);
+    auto port = std::dynamic_pointer_cast<Object<node::SourceProperties<T>>>(base);
     if (port == nullptr)
     {
         throw exceptions::SrfRuntimeError("ingress port type mismatch: " + name);
