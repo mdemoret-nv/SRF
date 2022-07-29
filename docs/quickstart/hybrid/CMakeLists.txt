@@ -17,23 +17,29 @@ list(APPEND CMAKE_MESSAGE_CONTEXT "hybrid")
 
 set(QUICKSTART_HYBRID_HOME "${CMAKE_CURRENT_SOURCE_DIR}")
 
-create_python_package(srf_qs_hybrid)
+set(create_package_args "COPY_INPLACE")
+
+if(SRF_PYTHON_BUILD_STUBS)
+  list(APPEND create_package_args "BUILD_STUBS")
+endif()
+
+create_python_package(srf_qs_hybrid ${create_package_args})
 
 add_subdirectory(srf_qs_hybrid/common)
 
 add_subdirectory(srf_qs_hybrid/ex00_wrap_data_objects)
 add_subdirectory(srf_qs_hybrid/ex01_wrap_nodes)
 
-set(extra_args "IS_INPLACE")
+set(build_package_args)
 
 if(SRF_PYTHON_PERFORM_INSTALL)
-  list(APPEND extra_args "INSTALL_WHEEL")
+  list(APPEND build_package_args "INSTALL_WHEEL")
 endif()
 
 if(TARGET srf-package-install)
-  list(APPEND extra_args "PYTHON_DEPENDENCIES" "srf-package-install")
+  list(APPEND build_package_args "PYTHON_DEPENDENCIES" "srf-package-install")
 endif()
 
-build_python_package(srf_qs_hybrid ${extra_args})
+build_python_package(srf_qs_hybrid ${build_package_args})
 
 list(POP_BACK CMAKE_MESSAGE_CONTEXT)

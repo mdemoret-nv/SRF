@@ -15,8 +15,6 @@
 
 add_pybind11_module(
   data
-  MODULE_ROOT
-    ${QUICKSTART_HYBRID_HOME}
   SOURCE_FILES
     data.cpp
   LINK_TARGETS
@@ -25,4 +23,3 @@ add_pybind11_module(
     data_target
 )
 
-inplace_build_copy(${data_target} ${CMAKE_CURRENT_SOURCE_DIR})

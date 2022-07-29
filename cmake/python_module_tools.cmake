@@ -91,6 +91,18 @@ function(create_python_package PACKAGE_NAME)
     message(FATAL_ERROR "An active wheel has already been created. Must call create_python_package/build_python_package in pairs")
   endif()
 
+  set(flags COPY_INPLACE BUILD_STUBS)
+  set(singleValues "")
+  set(multiValues "")
+
+  include(CMakeParseArguments)
+  cmake_parse_arguments(_ARGS
+    "${flags}"
+    "${singleValues}"
+    "${multiValues}"
+    ${ARGN}
+  )
+
   message(STATUS "Creating python package '${PACKAGE_NAME}'")
 
   # Set the active wheel in the parent scipe
@@ -102,6 +114,12 @@ function(create_python_package PACKAGE_NAME)
   # Make it depend on the sources
   add_custom_target(${PYTHON_ACTIVE_PACKAGE_NAME}-modules ALL
     DEPENDS ${PYTHON_ACTIVE_PACKAGE_NAME}-sources
+  )
+
+  # Save the arguments for this module to be used later
+  set_target_properties(${PYTHON_ACTIVE_PACKAGE_NAME}-modules PROPERTIES
+    COPY_INPLACE ${_ARGS_COPY_INPLACE}
+    BUILD_STUBS ${_ARGS_BUILD_STUBS}
   )
 
   # Outputs target depends on all sources, generated files, and modules
@@ -259,7 +277,7 @@ function(build_python_package PACKAGE_NAME)
     message(FATAL_ERROR "Mismatched package name supplied to create_python_package/build_python_package")
   endif()
 
-  set(flags BUILD_WHEEL INSTALL_WHEEL IS_INPLACE)
+  set(flags BUILD_WHEEL INSTALL_WHEEL)
   set(singleValues "")
   set(multiValues PYTHON_DEPENDENCIES)
 
@@ -275,6 +293,9 @@ function(build_python_package PACKAGE_NAME)
 
   get_target_property(sources_source_dir ${PYTHON_ACTIVE_PACKAGE_NAME}-sources SOURCE_DIR)
   get_target_property(sources_binary_dir ${PYTHON_ACTIVE_PACKAGE_NAME}-sources BINARY_DIR)
+
+  # Get the inplace and stubs flag from the module
+  get_target_property(package_copy_inplace ${PYTHON_ACTIVE_PACKAGE_NAME}-modules COPY_INPLACE)
 
   # First copy the source files
   copy_target_resources(${PYTHON_ACTIVE_PACKAGE_NAME}-sources ${sources_binary_dir})
@@ -326,7 +347,7 @@ function(build_python_package PACKAGE_NAME)
   endif()
 
   # Change which setup we use if we are using inplace
-  if(_ARGS_IS_INPLACE)
+  if(package_copy_inplace)
     list(APPEND _pip_command "${sources_source_dir}")
   else()
     list(APPEND _pip_command "${sources_binary_dir}")
@@ -456,6 +477,10 @@ macro(_create_python_library MODULE_NAME)
     get_target_property(_ARGS_MODULE_ROOT ${PYTHON_ACTIVE_PACKAGE_NAME}-modules SOURCE_DIR)
   endif()
 
+  # Get the inplace and stubs flag from the module
+  get_target_property(package_copy_inplace ${PYTHON_ACTIVE_PACKAGE_NAME}-modules COPY_INPLACE)
+  get_target_property(package_build_stubs ${PYTHON_ACTIVE_PACKAGE_NAME}-modules BUILD_STUBS)
+
   # Normalize the module root
   cmake_path(SET _ARGS_MODULE_ROOT "${_ARGS_MODULE_ROOT}")
 
@@ -525,8 +550,9 @@ macro(_create_python_library MODULE_NAME)
   # succeed
   add_dependencies(${PYTHON_ACTIVE_PACKAGE_NAME}-modules ${TARGET_NAME})
 
-  if(_ARGS_BUILD_STUBS)
-    # Get the relative path from the project source to the module root
+  if(package_build_stubs)
+
+  # Get the relative path from the project source to the module root
     cmake_path(RELATIVE_PATH _ARGS_MODULE_ROOT BASE_DIRECTORY ${PROJECT_SOURCE_DIR} OUTPUT_VARIABLE module_root_relative)
 
     cmake_path(APPEND PROJECT_BINARY_DIR ${module_root_relative} OUTPUT_VARIABLE module_root_binary_dir)
@@ -536,7 +562,7 @@ macro(_create_python_library MODULE_NAME)
     add_custom_command(
       OUTPUT  ${module_binary_stub_file}
       COMMAND ${Python3_EXECUTABLE} -m pybind11_stubgen ${TARGET_NAME} --no-setup-py --log-level WARN -o ./ --root-module-suffix \"\"
-      DEPENDS ${PYTHON_ACTIVE_PACKAGE_NAME}-modules
+      DEPENDS ${PYTHON_ACTIVE_PACKAGE_NAME}-modules ${TARGET_NAME}
       COMMENT "Building stub for python module ${TARGET_NAME}..."
       WORKING_DIRECTORY ${module_root_binary_dir}
     )
@@ -551,6 +577,7 @@ macro(_create_python_library MODULE_NAME)
 
     # Save the output as a target property
     add_target_resources(TARGET_NAME ${TARGET_NAME} "${module_binary_stub_file}")
+
   endif()
 
   if(_ARGS_INSTALL_DEST)
@@ -576,7 +603,7 @@ macro(_create_python_library MODULE_NAME)
     set(${_ARGS_OUTPUT_TARGET} "${TARGET_NAME}" PARENT_SCOPE)
   endif()
 
-  if(_ARGS_COPY_INPLACE)
+  if(package_copy_inplace)
     # Copy the target inplace
     inplace_build_copy(${TARGET_NAME} ${CMAKE_CURRENT_SOURCE_DIR})
   endif()

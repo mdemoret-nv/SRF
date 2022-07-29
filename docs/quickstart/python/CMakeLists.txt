@@ -17,9 +17,15 @@ list(APPEND CMAKE_MESSAGE_CONTEXT "python")
 
 set(QUICKSTART_PYTHON_HOME "${CMAKE_CURRENT_SOURCE_DIR}")
 
-create_python_package(srf_qs_python)
+set(create_package_args "COPY_INPLACE")
 
-set(extra_args "IS_INPLACE")
+if(SRF_PYTHON_BUILD_STUBS)
+  list(APPEND create_package_args "BUILD_STUBS")
+endif()
+
+create_python_package(srf_qs_python ${create_package_args})
+
+set(extra_args)
 
 if(SRF_PYTHON_PERFORM_INSTALL)
   list(APPEND extra_args "INSTALL_WHEEL")
