@@ -15,7 +15,7 @@
  * limitations under the License.
  */
 
-#include "pysrf/subscriber.hpp"
+#include "pysrf/observer.hpp"
 
 #include "pysrf/operators.hpp"
 #include "pysrf/types.hpp"
@@ -42,16 +42,12 @@ namespace srf::pysrf {
 namespace py = pybind11;
 using namespace py::literals;
 
-void SubscriberProxy::on_next(PyObjectSubscriber* self, py::object&& value)
+void ObserverProxy::on_next(PyObjectObserver* self, py::object&& value)
 {
-    // Check to see if we are subscribed before sending the value
-    if (self->is_subscribed())
-    {
-        self->on_next(std::move(value));
-    }
-};
+    self->on_next(std::move(value));
+}
 
-void SubscriberProxy::on_error(PyObjectSubscriber* self, py::object&& value)
+void ObserverProxy::on_error(PyObjectObserver* self, py::object&& value)
 {
     try
     {
@@ -64,12 +60,32 @@ void SubscriberProxy::on_error(PyObjectSubscriber* self, py::object&& value)
 
         self->on_error(std::current_exception());
     }
-};
+}
 
-bool SubscriberProxy::is_subscribed(PyObjectSubscriber* self)
+PyObjectObserver ObserverProxy::make_observer(std::function<void(py::object x)> on_next,
+                                              std::function<void(py::object x)> on_error,
+                                              std::function<void()> on_completed)
 {
-    // No GIL here
-    return self->is_subscribed();
+    CHECK(on_next);
+    CHECK(on_error);
+    CHECK(on_completed);
+
+    auto on_next_w = [on_next](PyHolder x) {
+        pybind11::gil_scoped_acquire gil;
+        on_next(std::move(x));  // Move the object into a temporary
+    };
+
+    auto on_error_w = [on_error](std::exception_ptr x) {
+        pybind11::gil_scoped_acquire gil;
+        on_error(py::none());
+    };
+
+    auto on_completed_w = [on_completed]() {
+        pybind11::gil_scoped_acquire gil;
+        on_completed();
+    };
+
+    return rxcpp::make_observer_dynamic<PyHolder>(on_next_w, on_error_w, on_completed_w);
 }
 
 }  // namespace srf::pysrf

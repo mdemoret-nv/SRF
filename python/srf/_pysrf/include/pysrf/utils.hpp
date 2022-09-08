@@ -58,6 +58,13 @@ void from_import(pybind11::module_& dest, const std::string& mod, const std::str
 // Imitates `from {mod} import {attr} as {name}` syntax
 void from_import_as(pybind11::module_& dest, const std::string& from, const std::string& import, const std::string& as);
 
+// Wraps a python on_next function to support checking the function signature and unpacking arguments
+std::function<pybind11::object(pybind11::object)> wrap_py_on_next(pybind11::function py_fn);
+
+std::function<void(std::exception_ptr)> wrap_py_on_error(pybind11::function py_fn);
+
+std::function<void()> wrap_py_on_completed(pybind11::function py_fn);
+
 /**
  * @brief Given a pybind11 object, attempt to extract its underlying cpp std::type_info* --
  *  if the wrapped type is something that was registered via pybind, ex: py::class_<...>(...), the return value
@@ -163,7 +170,7 @@ class PYBIND11_EXPORT PyObjectWrapper : public pybind11::detail::object_api<PyOb
 class PYBIND11_EXPORT PyObjectHolder : public pybind11::detail::object_api<PyObjectHolder>
 {
   public:
-    PyObjectHolder();
+    PyObjectHolder() = default;
     PyObjectHolder(pybind11::object&& to_wrap);
 
     PyObjectHolder(const PyObjectHolder& other) = default;

@@ -17,6 +17,8 @@
 
 #include "pysrf/subscriber.hpp"
 
+#include "pysrf/observable.hpp"
+#include "pysrf/observer.hpp"
 #include "pysrf/types.hpp"  // for PyObjectObserver, PyObjectSubscriber, PyObjectObservable, PySubscription
 #include "pysrf/utils.hpp"
 
@@ -64,6 +66,7 @@ PYBIND11_MODULE(subscriber, m)
         .def("is_subscribed", &SubscriberProxy::is_subscribed, py::call_guard<py::gil_scoped_release>());
 
     py::class_<PyObjectObservable>(m, "Observable")
+        .def_static("iterate", &ObservableProxy::iterate)
         .def("subscribe",
              py::overload_cast<PyObjectObservable*, PyObjectObserver&>(&ObservableProxy::subscribe),
              py::call_guard<py::gil_scoped_release>())

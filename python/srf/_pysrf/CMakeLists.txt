@@ -23,6 +23,8 @@ add_library(pysrf
   src/module_wrappers/pickle.cpp
   src/module_wrappers/shared_memory.cpp
   src/node.cpp
+  src/observable.cpp
+  src/observer.cpp
   src/operators.cpp
   src/options.cpp
   src/pipeline.cpp

@@ -32,6 +32,7 @@
 #include "srf/segment/builder.hpp"
 #include "srf/segment/object.hpp"
 
+#include <Python.h>
 #include <boost/fiber/future/future.hpp>
 #include <glog/logging.h>
 #include <pybind11/cast.h>
@@ -61,6 +62,20 @@
 // IWYU pragma: no_include <boost/smart_ptr/detail/operator_bool.hpp>
 // IWYU pragma: no_include "rx-includes.hpp"
 
+// namespace pybind11 {
+// class generator : public iterator
+// {
+//   public:
+//     PYBIND11_OBJECT_DEFAULT(generator, iterator, PyGen_Check);
+
+//     void send();
+//     void throw_();
+//     void close(){
+//         this->attr("close")();
+//     }
+// };
+// }  // namespace pybind11
+
 namespace srf::pysrf {
 
 namespace py = pybind11;
@@ -81,9 +96,18 @@ std::shared_ptr<srf::segment::ObjectProperties> build_source(srf::segment::Build
             // Get the iterator from the factory
             auto iter = iter_factory();
 
+            // See if this is a generator
+            bool is_generator = PyGen_Check(iter.ptr());
+
             // Loop over the iterator
-            while (iter != py::iterator::sentinel())
+            while (subscriber.is_subscribed())
             {
+                // Check to see if we are out of values
+                if (iter == py::iterator::sentinel())
+                {
+                    break;
+                }
+
                 // Get the next value
                 auto next_val = py::cast<py::object>(*iter);
 
@@ -100,6 +124,12 @@ std::shared_ptr<srf::segment::ObjectProperties> build_source(srf::segment::Build
                         subscriber.on_next(std::move(next_val));
                     }
                 }
+            }
+
+            if (is_generator)
+            {
+                // Instruct the generator to close (incase we are shutting down early)
+                iter.attr("close")();
             }
 
         } catch (const std::exception& e)

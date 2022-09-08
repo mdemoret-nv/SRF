@@ -19,6 +19,7 @@
 
 #include "srf/exceptions/runtime_error.hpp"
 
+#include <glog/logging.h>
 #include <nlohmann/json.hpp>
 #include <pybind11/cast.h>
 #include <pybind11/detail/internals.h>
@@ -42,6 +43,39 @@ namespace srf::pysrf {
 
 namespace py = pybind11;
 using nlohmann::json;
+
+// Taken straight from pybind11 function cast
+struct PyFuncHandle
+{
+    py::function f;
+#if !(defined(_MSC_VER) && _MSC_VER == 1916 && defined(PYBIND11_CPP17))
+    // This triggers a syntax error under very special conditions (very weird indeed).
+    explicit
+#endif
+        PyFuncHandle(py::function&& fn) noexcept :
+      f(std::move(fn))
+    {
+        this->m_repr = py::str(this->f);
+    }
+    PyFuncHandle(const PyFuncHandle& other)
+    {
+        operator=(other);
+    }
+    PyFuncHandle& operator=(const PyFuncHandle& other)
+    {
+        py::gil_scoped_acquire acq;
+        f      = other.f;
+        m_repr = other.m_repr;
+        return *this;
+    }
+    ~PyFuncHandle()
+    {
+        py::gil_scoped_acquire acq;
+        py::function kill_f(std::move(f));
+    }
+
+    std::string m_repr;
+};
 
 void import_module_object(py::module_& dest, const std::string& source, const std::string& member)
 {
@@ -68,6 +102,96 @@ void from_import(pybind11::module_& dest, const std::string& mod, const std::str
 void from_import_as(py::module_& dest, const std::string& from, const std::string& import, const std::string& as)
 {
     dest.attr(as.c_str()) = py::module_::import(from.c_str()).attr(import.c_str());
+}
+
+std::function<py::object(py::object)> wrap_py_on_next(py::function py_fn)
+{
+    if (!py_fn)
+    {
+        return nullptr;
+        // return [](py::object x) {
+        //     // Grab the GIL and decrement the ref count
+        //     py::gil_scoped_acquire gil;
+
+        //     auto tmp = std::move(x);
+
+        //     return py::none();
+        // };
+    }
+
+    py::module_ inspect = py::module_::import("inspect");
+
+    auto signature_fn = inspect.attr("signature");
+
+    // Get the number of args for the supplied function
+    auto number_of_args = py::len(signature_fn(py_fn).attr("parameters"));
+
+    if (number_of_args == 0)
+    {
+        // raise error
+        LOG(ERROR) << "Python on_next function must accept at least one argument";
+        return nullptr;
+    }
+
+    // No need to unpack
+    if (number_of_args == 1)
+    {
+        // Wrap the original py::function for safe cleanup
+        return [wrapper = PyFuncHandle(std::move(py_fn))](py::object x) {
+            py::gil_scoped_acquire gil;
+
+            // Unpack the arguments
+            return wrapper.f(x);
+        };
+    }
+
+    // Wrap the original py::function for safe cleanup
+    return [wrapper = PyFuncHandle(std::move(py_fn))](py::object x) {
+        py::gil_scoped_acquire gil;
+
+        // Unpack the arguments
+        return wrapper.f(*x);
+    };
+}
+
+std::function<void(std::exception_ptr)> wrap_py_on_error(py::function py_fn)
+{
+    if (!py_fn)
+    {
+        return nullptr;
+        // // Return an empty function
+        // return [](std::exception_ptr _) {
+        //     // TODO: Add unhandled
+        // };
+    }
+
+    // Otherwise cast it
+    auto wrapped = py::cast<std::function<void(py::object)>>(std::move(py_fn));
+
+    return [wrapped](std::exception_ptr x) {
+        pybind11::gil_scoped_acquire gil;
+
+        // First, translate the exception setting the python exception value
+        py::detail::translate_exception(x);
+
+        // Creating py::error_already_set will clear the exception and retrieve the value
+        py::error_already_set active_ex;
+
+        // Now actually pass the exception to the callback
+        wrapped(active_ex.value());
+    };
+}
+
+std::function<void()> wrap_py_on_completed(py::function py_fn)
+{
+    if (!py_fn)
+    {
+        // Return an empty function
+        return nullptr;
+    }
+
+    // Otherwise cast it
+    return py::cast<std::function<void()>>(std::move(py_fn));
 }
 
 const std::type_info* cpptype_info_from_object(py::object& obj)
@@ -252,13 +376,14 @@ PyObject* PyObjectWrapper::ptr() const
     return m_obj.ptr();
 }
 
-PyObjectHolder::PyObjectHolder() : m_wrapped(std::make_shared<PyObjectWrapper>()) {}
-
 PyObjectHolder::PyObjectHolder(pybind11::object&& to_wrap) :
   m_wrapped(std::make_shared<PyObjectWrapper>(std::move(to_wrap)))
 {}
 
-PyObjectHolder::PyObjectHolder(PyObjectHolder&& other) : m_wrapped(std::move(other.m_wrapped)) {}
+PyObjectHolder::PyObjectHolder(PyObjectHolder&& other) : m_wrapped(std::make_shared<PyObjectWrapper>())
+{
+    std::swap(m_wrapped, other.m_wrapped);
+}
 
 PyObjectHolder& PyObjectHolder::operator=(const PyObjectHolder& other)
 {

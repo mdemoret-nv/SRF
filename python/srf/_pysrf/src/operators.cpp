@@ -17,9 +17,11 @@
 
 #include "pysrf/operators.hpp"
 
+#include "pysrf/executor.hpp"
 #include "pysrf/types.hpp"
 #include "pysrf/utils.hpp"
 
+#include <boost/fiber/operations.hpp>
 #include <pybind11/cast.h>
 #include <pybind11/functional.h>  // IWYU pragma: keep
 #include <pybind11/gil.h>
@@ -41,6 +43,65 @@ namespace srf::pysrf {
 
 namespace py = pybind11;
 
+py::object wait_on_futures(py::handle future_object)
+{
+    // First check if its a dict
+    if (py::isinstance<py::dict>(future_object))
+    {
+        py::dict output_dict;
+
+        // Iterate over the dict
+        for (const auto& x : future_object.cast<py::dict>())
+        {
+            output_dict[x.first] = wait_on_futures(x.second);
+        }
+
+        return output_dict;
+    }
+    else if (py::isinstance<py::iterable>(future_object))
+    {
+        py::list output_list;
+
+        // Iterate over the iterable
+        for (const auto& x : future_object)
+        {
+            output_list.append(wait_on_futures(x));
+        }
+
+        // Create a new instance of the iterable passing the list to the constructor
+        return future_object.get_type()(output_list);
+    }
+
+    auto dask_future_type = py::module_::import("dask.distributed").attr("Future");
+
+    // Not a container object
+    if (py::isinstance(future_object, dask_future_type))
+    {
+        // We are a dask future. Quickly check if its done, then release
+        while (!future_object.attr("done")().cast<bool>())
+        {
+            // Release the GIL and wait for it to be done
+            py::gil_scoped_release nogil;
+
+            boost::this_fiber::yield();
+        }
+
+        // Completed, move into the returned object
+        return future_object.attr("result")();
+    }
+    else if (py::isinstance<PyBoostFuture>(future_object))
+    {
+        // auto future_cpp = future_object.cast<PyBoostFuture>();
+
+        // // Release the GIL and wait for it to be done
+        // py::gil_scoped_release nogil;
+
+        // return future_cpp.py_result();
+    }
+
+    throw std::runtime_error("Unknown future type");
+}
+
 std::string OperatorProxy::get_name(PythonOperator& self)
 {
     return self.get_name();
@@ -59,6 +120,20 @@ PythonOperator OperatorsProxy::filter(std::function<bool(py::object x)> filter_f
             return returned;
         });
     });
+}
+
+PythonOperator OperatorsProxy::from_future()
+{
+    //  Build and return the map operator
+    return {"from_future", [=](PyObjectObservable source) {
+                return source.map([](PyHolder data_object) {
+                    py::gil_scoped_acquire gil;
+
+                    PyHolder returned = wait_on_futures(data_object);
+
+                    return returned;
+                });
+            }};
 }
 
 PythonOperator OperatorsProxy::flatten()
@@ -267,6 +342,77 @@ PythonOperator OperatorsProxy::to_list()
 
                 return PyHolder(std::move(values));
             });
+    });
+}
+
+PythonOperator OperatorsProxy::map_async(py::function py_map_fn)
+{
+    auto map_f = wrap_py_on_next(std::move(py_map_fn));
+
+    auto dask_distributed  = py::module_::import("dask.distributed");
+    auto dask_future_type  = dask_distributed.attr("Future");
+    auto dask_as_completed = dask_distributed.attr("as_completed");
+
+    //  Build and return the map operator
+    return PythonOperator("map_async", [map_f, dask_future_type, dask_as_completed](PyObjectObservable source) {
+        return rxcpp::observable<>::create<PyHolder>(
+            [source, map_f, &dask_future_type, &dask_as_completed](PyObjectSubscriber sink) {
+                source.subscribe([map_f, &sink, &dask_future_type, &dask_as_completed](PyHolder data_object) {
+                    try
+                    {
+                        AcquireGIL gil;
+
+                        // Call the map function
+                        PyHolder returned = map_f(std::move(data_object));
+
+                        // Convert the futures to values
+                        returned = wait_on_futures(std::move(returned));
+
+                        if (sink.is_subscribed())
+                        {
+                            // Release the GIL before calling on_next
+                            gil.release();
+
+                            // Make sure to move here
+                            sink.on_next(std::move(returned));
+
+                            // Double check the value got moved
+                            assert(!returned);
+                        }
+                        else
+                        {
+                            // This object needs to lose its ref count while we have the GIL
+                            py::object tmp = std::move(returned);
+                        }
+                    } catch (py::error_already_set& err)
+                    {
+                        // Need the GIL here
+                        AcquireGIL gil;
+
+                        py::print("Python error in callback hit!");
+                        py::print(err.what());
+
+                        // Release before calling on_error
+                        gil.release();
+
+                        sink.on_error(std::current_exception());
+                    }
+                });
+            });
+    });
+}
+
+PythonOperator OperatorsProxy::flat_map(std::function<PyObjectObservable(pybind11::object x)> flat_map_fn)
+{
+    return PythonOperator("flat_map", [flat_map_fn](PyObjectObservable source) {
+        return source.flat_map([flat_map_fn](PyHolder data_object) {
+            AcquireGIL gil;
+
+            // Call the map function
+            auto returned = flat_map_fn(std::move(data_object));
+
+            return returned;
+        });
     });
 }
 }  // namespace srf::pysrf

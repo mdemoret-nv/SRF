@@ -45,7 +45,10 @@ PYBIND11_MODULE(operators, m)
     py::class_<PythonOperator>(m, "Operator").def_property_readonly("name", &OperatorProxy::get_name);
 
     m.def("filter", &OperatorsProxy::filter);
+    m.def("flat_map", &OperatorsProxy::flat_map);
     m.def("flatten", &OperatorsProxy::flatten);
+    m.def("from_future", &OperatorsProxy::from_future);
+    m.def("map_async", &OperatorsProxy::map_async);
     m.def("map", &OperatorsProxy::map);
     m.def("on_completed", &OperatorsProxy::on_completed);
     m.def("pairwise", &OperatorsProxy::pairwise);

@@ -64,8 +64,12 @@ class OperatorProxy
 class OperatorsProxy
 {
   public:
+    static PythonOperator concat_map(std::function<PyObjectObservable(pybind11::object x)> concat_map_fn);
     static PythonOperator filter(std::function<bool(pybind11::object x)> filter_fn);
+    static PythonOperator flat_map(std::function<PyObjectObservable(pybind11::object x)> flat_map_fn);
     static PythonOperator flatten();
+    static PythonOperator from_future();
+    static PythonOperator map_async(pybind11::function map_fn);
     static PythonOperator map(std::function<pybind11::object(pybind11::object x)> map_fn);
     static PythonOperator on_completed(std::function<pybind11::object()> finally_fn);
     static PythonOperator pairwise();

@@ -28,12 +28,15 @@ namespace srf::pysrf {
 // Export everything in the srf::pysrf namespace by default since we compile with -fvisibility=hidden
 #pragma GCC visibility push(default)
 
-class SubscriberProxy
+class ObserverProxy
 {
   public:
-    static void on_next(PyObjectSubscriber* self, pybind11::object&& value);
-    static void on_error(PyObjectSubscriber* self, pybind11::object&& value);
-    static bool is_subscribed(PyObjectSubscriber* self);
+    static void on_next(PyObjectObserver* self, pybind11::object&& value);
+    static void on_error(PyObjectObserver* self, pybind11::object&& value);
+
+    static PyObjectObserver make_observer(std::function<void(pybind11::object x)> on_next,
+                                          std::function<void(pybind11::object x)> on_error,
+                                          std::function<void()> on_completed);
 };
 
 #pragma GCC visibility pop

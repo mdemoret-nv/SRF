@@ -14,6 +14,7 @@
 # limitations under the License.
 
 import dataclasses
+import time
 
 import srf
 import srf.tests.test_edges_cpp as m
@@ -117,9 +118,16 @@ def test_edge_py_to_cpp_same():
     def segment_init(seg: srf.Builder):
 
         def source_fn():
-            yield m.DerivedB()
-            yield m.DerivedB()
-            yield m.DerivedB()
+
+            try:
+                for i in range(5):
+                    print("Emitting {}".format(i))
+                    yield m.DerivedB()
+                    time.sleep(10)
+
+                print("Source complete")
+            finally:
+                print("Cleaned up")
 
         source = seg.make_source("source", source_fn())
 
@@ -133,7 +141,7 @@ def test_edge_py_to_cpp_same():
     options = srf.Options()
 
     # Set to 1 thread
-    options.topology.user_cpuset = "0-0"
+    options.topology.user_cpuset = "0-1"
 
     executor = srf.Executor(options)
 
@@ -141,7 +149,14 @@ def test_edge_py_to_cpp_same():
 
     executor.start()
 
+    time.sleep(1)
+
+    print("Stopping executor")
+    executor.stop()
+
     executor.join()
+
+    print("Done")
 
 
 def test_edge_wrapper():
