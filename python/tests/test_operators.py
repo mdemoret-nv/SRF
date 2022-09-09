@@ -86,6 +86,19 @@ def run_segment(ex_runner):
     return run
 
 
+@pytest.fixture(scope="module")
+def dask_client():
+
+    # make a dask cluster
+    from dask.distributed import Client
+
+    client = Client()
+
+    yield client
+
+    client.shutdown()
+
+
 def producer(to_produce):
 
     for x in to_produce:
@@ -233,16 +246,10 @@ def test_to_list_empty(run_segment):
     assert actual == expected
 
 
-def test_map_async(run_segment):
+def test_map_async(run_segment, dask_client):
 
     input_data = [1, 2, 3, 4, 5, "one", "two", "three", "four", "five", 1, "two", 3]
     expected = [4, 6, 8, 10, 12, "oneone", "twotwo", "threethree", "fourfour", "fivefive", 4, "twotwo", 8]
-
-    # make a dask cluster
-    from dask.distributed import Client
-    from dask.distributed import Future
-
-    client = Client()
 
     def node_fn(input: srf.Observable, output: srf.Subscriber):
 
@@ -251,7 +258,7 @@ def test_map_async(run_segment):
 
         def map_fn(x):
 
-            f = client.submit(double, x)
+            f = dask_client.submit(double, x)
 
             return f
 
@@ -262,7 +269,7 @@ def test_map_async(run_segment):
 
             return x
 
-        input.pipe(ops.map_async(map_fn), ops.map(after_map_fn)).subscribe(output)
+        input.pipe(ops.map(map_fn), ops.from_future(), ops.map(after_map_fn)).subscribe(output)
 
     actual, raised_error = run_segment(input_data, node_fn)
 
@@ -327,7 +334,7 @@ def test_map_async(run_segment):
             3: 3
         }, ("four", )), id="tuple_mixed"),
     ])
-def test_map_async_with_iterables(run_segment, input_data):
+def test_map_async_with_iterables(run_segment, input_data, dask_client):
 
     # Utility class to apply function to all nested elements
     def pack_data(wrapper, func):
@@ -358,16 +365,11 @@ def test_map_async_with_iterables(run_segment, input_data):
 
     expected = pack_data(input_data, lambda x: after_map_fn(pack_data(x, double)))
 
-    # make a dask cluster
-    from dask.distributed import Client
-
-    client = Client()
-
     def node_fn(input: srf.Observable, output: srf.Subscriber):
 
         def map_fn(x):
 
-            return pack_data(x, lambda y: client.submit(double, y))
+            return pack_data(x, lambda y: dask_client.submit(double, y))
 
         input.pipe(ops.map_async(map_fn), ops.map(after_map_fn)).subscribe(output)
 
@@ -394,7 +396,7 @@ def test_map_async_with_iterables(run_segment, input_data):
             3: 3
         }, ("four", )), id="tuple_mixed"),
     ])
-def test_map_async_nested(run_segment, input_data):
+def test_map_async_nested(run_segment, input_data, dask_client):
 
     # Utility class to apply function to all nested elements
     def pack_data(wrapper, func):
@@ -423,23 +425,18 @@ def test_map_async_nested(run_segment, input_data):
 
     expected = pack_data(input_data, lambda x: add_fn(double_fn(x)))
 
-    # make a dask cluster
-    from dask.distributed import Client
-
-    client = Client()
-
     def node_fn(input: srf.Observable, output: srf.Subscriber):
 
         def map_double_fn(x):
 
-            return pack_data(x, lambda y: client.submit(double_fn, y))
+            return pack_data(x, lambda y: dask_client.submit(double_fn, y))
 
         def map_add_fn(x):
 
-            return pack_data(x, lambda y: client.submit(add_fn, y))
+            return pack_data(x, lambda y: dask_client.submit(add_fn, y))
 
         # Do a normal map to return the future then async second
-        input.pipe(ops.map(map_double_fn), ops.map_async(map_add_fn)).subscribe(output)
+        input.pipe(ops.map(map_double_fn), ops.map(map_add_fn), ops.from_future()).subscribe(output)
 
     actual, raised_error = run_segment(input_data, node_fn)
 

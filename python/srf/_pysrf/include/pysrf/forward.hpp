@@ -34,6 +34,8 @@ namespace srf::pysrf {
 
 class PyObjectHolder;
 class PyObjectWrapper;
+template <typename ObjectT>
+class PyObjectWrapper2;
 class PythonOperator;
 
 }  // namespace srf::pysrf

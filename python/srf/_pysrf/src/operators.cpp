@@ -43,7 +43,7 @@ namespace srf::pysrf {
 
 namespace py = pybind11;
 
-py::object wait_on_futures(py::handle future_object)
+py::object wait_on_futures(py::object future_object)
 {
     // First check if its a dict
     if (py::isinstance<py::dict>(future_object))
@@ -53,7 +53,7 @@ py::object wait_on_futures(py::handle future_object)
         // Iterate over the dict
         for (const auto& x : future_object.cast<py::dict>())
         {
-            output_dict[x.first] = wait_on_futures(x.second);
+            output_dict[x.first] = wait_on_futures(py::reinterpret_borrow<py::object>(x.second));
         }
 
         return output_dict;
@@ -65,7 +65,7 @@ py::object wait_on_futures(py::handle future_object)
         // Iterate over the iterable
         for (const auto& x : future_object)
         {
-            output_list.append(wait_on_futures(x));
+            output_list.append(wait_on_futures(py::reinterpret_borrow<py::object>(x)));
         }
 
         // Create a new instance of the iterable passing the list to the constructor
@@ -74,8 +74,9 @@ py::object wait_on_futures(py::handle future_object)
 
     auto dask_future_type = py::module_::import("dask.distributed").attr("Future");
 
-    // Not a container object
-    if (py::isinstance(future_object, dask_future_type))
+    // So its not a supported container. We just want to check the done() and result() method which is supported by any
+    // Future-like class (concurrent.futures.Future and Dask)
+    if (py::hasattr(future_object, "done") && py::hasattr(future_object, "result"))
     {
         // We are a dask future. Quickly check if its done, then release
         while (!future_object.attr("done")().cast<bool>())
@@ -89,15 +90,15 @@ py::object wait_on_futures(py::handle future_object)
         // Completed, move into the returned object
         return future_object.attr("result")();
     }
-    else if (py::isinstance<PyBoostFuture>(future_object))
-    {
-        // auto future_cpp = future_object.cast<PyBoostFuture>();
+    // else if (py::isinstance<PyBoostFuture>(future_object))
+    // {
+    //     auto future_cpp = future_object.cast<PyBoostFuture>();
 
-        // // Release the GIL and wait for it to be done
-        // py::gil_scoped_release nogil;
+    //     // Release the GIL and wait for it to be done
+    //     py::gil_scoped_release nogil;
 
-        // return future_cpp.py_result();
-    }
+    //     return future_cpp.py_result();
+    // }
 
     throw std::runtime_error("Unknown future type");
 }
@@ -129,7 +130,7 @@ PythonOperator OperatorsProxy::from_future()
                 return source.map([](PyHolder data_object) {
                     py::gil_scoped_acquire gil;
 
-                    PyHolder returned = wait_on_futures(data_object);
+                    PyHolder returned = wait_on_futures(std::move(data_object));
 
                     return returned;
                 });
@@ -209,6 +210,25 @@ PythonOperator OperatorsProxy::map(std::function<py::object(py::object x)> map_f
 
             // Call the map function
             return map_fn(std::move(data_object));
+        });
+    });
+}
+
+PythonOperator OperatorsProxy::map_async(py::function py_map_fn)
+{
+    auto map_fn = wrap_py_on_next(std::move(py_map_fn));
+
+    // Build and return the map operator
+    return PythonOperator("map_async", [=](PyObjectObservable source) -> PyObjectObservable {
+        return source.map([=](PyHolder data_object) -> PyHolder {
+            py::gil_scoped_acquire gil;
+
+            // Call the map function
+            auto future_obj = map_fn(std::move(data_object));
+
+            PyHolder returned_obj = wait_on_futures(future_obj);
+
+            return returned_obj;
         });
     });
 }
@@ -345,62 +365,62 @@ PythonOperator OperatorsProxy::to_list()
     });
 }
 
-PythonOperator OperatorsProxy::map_async(py::function py_map_fn)
-{
-    auto map_f = wrap_py_on_next(std::move(py_map_fn));
+// PythonOperator OperatorsProxy::map_async(py::function py_map_fn)
+// {
+//     auto map_f = wrap_py_on_next(std::move(py_map_fn));
 
-    auto dask_distributed  = py::module_::import("dask.distributed");
-    auto dask_future_type  = dask_distributed.attr("Future");
-    auto dask_as_completed = dask_distributed.attr("as_completed");
+//     auto dask_distributed  = py::module_::import("dask.distributed");
+//     auto dask_future_type  = dask_distributed.attr("Future");
+//     auto dask_as_completed = dask_distributed.attr("as_completed");
 
-    //  Build and return the map operator
-    return PythonOperator("map_async", [map_f, dask_future_type, dask_as_completed](PyObjectObservable source) {
-        return rxcpp::observable<>::create<PyHolder>(
-            [source, map_f, &dask_future_type, &dask_as_completed](PyObjectSubscriber sink) {
-                source.subscribe([map_f, &sink, &dask_future_type, &dask_as_completed](PyHolder data_object) {
-                    try
-                    {
-                        AcquireGIL gil;
+//     //  Build and return the map operator
+//     return PythonOperator("map_async", [map_f, dask_future_type, dask_as_completed](PyObjectObservable source) {
+//         return rxcpp::observable<>::create<PyHolder>(
+//             [source, map_f, &dask_future_type, &dask_as_completed](PyObjectSubscriber sink) {
+//                 source.subscribe([map_f, &sink, &dask_future_type, &dask_as_completed](PyHolder data_object) {
+//                     try
+//                     {
+//                         AcquireGIL gil;
 
-                        // Call the map function
-                        PyHolder returned = map_f(std::move(data_object));
+//                         // Call the map function
+//                         PyHolder returned = map_f(std::move(data_object));
 
-                        // Convert the futures to values
-                        returned = wait_on_futures(std::move(returned));
+//                         // Convert the futures to values
+//                         returned = wait_on_futures(std::move(returned));
 
-                        if (sink.is_subscribed())
-                        {
-                            // Release the GIL before calling on_next
-                            gil.release();
+//                         if (sink.is_subscribed())
+//                         {
+//                             // Release the GIL before calling on_next
+//                             gil.release();
 
-                            // Make sure to move here
-                            sink.on_next(std::move(returned));
+//                             // Make sure to move here
+//                             sink.on_next(std::move(returned));
 
-                            // Double check the value got moved
-                            assert(!returned);
-                        }
-                        else
-                        {
-                            // This object needs to lose its ref count while we have the GIL
-                            py::object tmp = std::move(returned);
-                        }
-                    } catch (py::error_already_set& err)
-                    {
-                        // Need the GIL here
-                        AcquireGIL gil;
+//                             // Double check the value got moved
+//                             assert(!returned);
+//                         }
+//                         else
+//                         {
+//                             // This object needs to lose its ref count while we have the GIL
+//                             py::object tmp = std::move(returned);
+//                         }
+//                     } catch (py::error_already_set& err)
+//                     {
+//                         // Need the GIL here
+//                         AcquireGIL gil;
 
-                        py::print("Python error in callback hit!");
-                        py::print(err.what());
+//                         py::print("Python error in callback hit!");
+//                         py::print(err.what());
 
-                        // Release before calling on_error
-                        gil.release();
+//                         // Release before calling on_error
+//                         gil.release();
 
-                        sink.on_error(std::current_exception());
-                    }
-                });
-            });
-    });
-}
+//                         sink.on_error(std::current_exception());
+//                     }
+//                 });
+//             });
+//     });
+// }
 
 PythonOperator OperatorsProxy::flat_map(std::function<PyObjectObservable(pybind11::object x)> flat_map_fn)
 {

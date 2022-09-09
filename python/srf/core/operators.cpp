@@ -42,6 +42,9 @@ PYBIND11_MODULE(operators, m)
     // Common must be first in every module
     pysrf::import(m, "srf.core.common");
 
+    // Need subscriber for Observable
+    pysrf::import(m, "srf.core.subscriber");
+
     py::class_<PythonOperator>(m, "Operator").def_property_readonly("name", &OperatorProxy::get_name);
 
     m.def("filter", &OperatorsProxy::filter);

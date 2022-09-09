@@ -307,6 +307,11 @@ json cast_from_pyobject(const py::object& source)
 
 PyObjectWrapper::PyObjectWrapper(pybind11::object&& to_wrap) : m_obj(std::move(to_wrap)) {}
 
+PyObjectWrapper::PyObjectWrapper(PyObjectWrapper&& other)
+{
+    std::swap(m_obj, other.m_obj);
+}
+
 PyObjectWrapper::~PyObjectWrapper()
 {
     // If we are being destroyed with a wrapped object, grab the GIL before destroying
@@ -453,4 +458,116 @@ PyObject* PyObjectHolder::ptr() const
     return m_wrapped->ptr();
 }
 
+template <typename ObjectT>
+PyObjectHolder2<ObjectT>::PyObjectHolder2(ObjectT&& to_wrap) :
+  m_wrapped(std::make_shared<PyObjectWrapper>(std::move(to_wrap)))
+{}
+
+template <typename ObjectT>
+PyObjectHolder2<ObjectT>::PyObjectHolder2(PyObjectHolder2&& other) : m_wrapped(std::make_shared<PyObjectWrapper>())
+{
+    std::swap(m_wrapped, other.m_wrapped);
+}
+
+template <typename ObjectT>
+PyObjectHolder2<ObjectT>& PyObjectHolder2<ObjectT>::operator=(const PyObjectHolder2& other)
+{
+    if (this == &other)
+    {
+        return *this;
+    }
+
+    m_wrapped = other.m_wrapped;
+
+    return *this;
+}
+
+template <typename ObjectT>
+PyObjectHolder2<ObjectT>& PyObjectHolder2<ObjectT>::operator=(PyObjectHolder2<ObjectT>&& other)
+{
+    if (this == &other)
+    {
+        return *this;
+    }
+
+    m_wrapped.reset();
+    std::swap(m_wrapped, other.m_wrapped);
+
+    return *this;
+}
+
+template <typename ObjectT>
+PyObjectHolder2<ObjectT>::operator bool() const
+{
+    return (bool)*m_wrapped;
+}
+
+template <typename ObjectT>
+const pybind11::handle& PyObjectHolder2<ObjectT>::view_obj() const&
+{
+    // Allow for peaking into the object
+    return m_wrapped->view_obj();
+}
+
+template <typename ObjectT>
+ObjectT PyObjectHolder2<ObjectT>::copy_obj() const&
+{
+    // Allow for peaking into the object
+    return m_wrapped->copy_obj();
+}
+
+template <typename ObjectT>
+ObjectT&& PyObjectHolder2<ObjectT>::move_obj() &&
+{
+    if constexpr (std::is_same_v<ObjectT, py::object>)
+    {
+        return std::move(*m_wrapped).move_obj();
+    }
+    else
+    {
+        // If it differs, we need to cast it
+        return std::move(std::move(*m_wrapped).move_obj().cast<ObjectT>());
+    }
+}
+
+template <typename ObjectT>
+PyObjectHolder2<ObjectT>::operator const pybind11::handle&() const&
+{
+    // TODO(MDD): Do we need the GIL here?
+    if (PyGILState_Check() == 0)
+    {
+        throw srf::exceptions::SrfRuntimeError("Must have the GIL copying to py::object");
+    }
+
+    return m_wrapped->view_obj();
+}
+
+template <typename ObjectT>
+PyObjectHolder2<ObjectT>::operator ObjectT&&() &&
+{
+    if constexpr (std::is_same_v<ObjectT, py::object>)
+    {
+        return std::move(*m_wrapped).move_obj();
+    }
+    else
+    {
+        // If it differs, we need to cast it
+        // py::object tmp = std::move(*m_wrapped).move_obj();
+        // py::function()
+        // auto a = py::cast<ObjectT>(tmp);
+        // return std::move(tmp).cast<ObjectT>();
+
+        return std::move(std::move(*m_wrapped).move_obj().cast<ObjectT>());
+    }
+}
+
+template <typename ObjectT>
+PyObject* PyObjectHolder2<ObjectT>::ptr() const
+{
+    return m_wrapped->ptr();
+}
+
+// Explicitly only instantiate classes that derive from py::object for now
+template class PyObjectHolder2<py::object>;
+template class PyObjectHolder2<py::function>;
 }  // namespace srf::pysrf

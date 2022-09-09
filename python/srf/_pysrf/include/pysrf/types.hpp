@@ -21,13 +21,17 @@
 
 #include "srf/segment/object.hpp"
 
+#include <pybind11/pytypes.h>
 #include <rxcpp/rx.hpp>  // IWYU pragma: keep
 
 #include <functional>
 
 namespace srf::pysrf {
 
-using PyHolder = PyObjectHolder;  // NOLINT
+// using PyHolder = PyObjectHolder;  // NOLINT
+
+using PyHolder          = PyObjectHolder2<pybind11::object>;    // NOLINT
+using PyFunctionWrapper = PyObjectHolder2<pybind11::function>;  // NOLINT
 
 using PySubscription     = rxcpp::subscription;                                // NOLINT(readability-identifier-naming)
 using PyObjectObserver   = rxcpp::observer<PyHolder, void, void, void, void>;  // NOLINT(readability-identifier-naming)

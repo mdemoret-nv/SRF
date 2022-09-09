@@ -131,12 +131,14 @@ class PYBIND11_EXPORT PyObjectWrapper : public pybind11::detail::object_api<PyOb
   public:
     PyObjectWrapper() = default;
     PyObjectWrapper(pybind11::object&& to_wrap);
+    PyObjectWrapper(PyObjectWrapper&& other);
 
     // Disallow copying since that would require the GIL. If it needs to be copied, use PyObjectHolder
     PyObjectWrapper(const PyObjectWrapper&) = delete;
 
     ~PyObjectWrapper();
 
+    // Disallow copying since that would require the GIL. If it needs to be copied, use PyObjectHolder
     PyObjectWrapper& operator=(const PyObjectWrapper& other) = delete;
 
     PyObjectWrapper& operator=(PyObjectWrapper&& other) = default;
@@ -199,6 +201,49 @@ class PYBIND11_EXPORT PyObjectHolder : public pybind11::detail::object_api<PyObj
     operator pybind11::object&&() &&;
 
     operator pybind11::object&&() const&& = delete;
+
+    // Necessary to implement the object_api interface
+    PyObject* ptr() const;
+
+  private:
+    std::shared_ptr<PyObjectWrapper> m_wrapped;
+};
+
+// Allows you to move a pybind11::object around without needing the GIL. Uses a shared_ptr under the hood to reference
+// count
+template <typename ObjectT>
+class PYBIND11_EXPORT PyObjectHolder2 : public pybind11::detail::object_api<PyObjectHolder>
+{
+  public:
+    PyObjectHolder2() = default;
+    PyObjectHolder2(ObjectT&& to_wrap);
+
+    PyObjectHolder2(const PyObjectHolder2& other) = default;
+
+    PyObjectHolder2(PyObjectHolder2&& other);
+
+    PyObjectHolder2& operator=(const PyObjectHolder2& other);
+
+    PyObjectHolder2& operator=(PyObjectHolder2&& other);
+
+    explicit operator bool() const;
+
+    // Returns const ref. Does not require GIL. Use at your own risk!!! Should only be used for testing
+    const pybind11::handle& view_obj() const&;
+
+    // Makes a copy of the underlying object. Requires the GIL
+    ObjectT copy_obj() const&;
+
+    // Moves the underlying object. Does not require the GIL
+    ObjectT&& move_obj() &&;
+
+    // Returns const ref. Used by object_api. Should not be used directly. Requires the GIL
+    operator const pybind11::handle&() const&;
+
+    // Main method to move values out of the wrapper
+    operator ObjectT&&() &&;
+
+    operator ObjectT&&() const&& = delete;
 
     // Necessary to implement the object_api interface
     PyObject* ptr() const;
