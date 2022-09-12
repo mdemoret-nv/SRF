@@ -72,8 +72,6 @@ py::object wait_on_futures(py::object future_object)
         return future_object.get_type()(output_list);
     }
 
-    auto dask_future_type = py::module_::import("dask.distributed").attr("Future");
-
     // So its not a supported container. We just want to check the done() and result() method which is supported by any
     // Future-like class (concurrent.futures.Future and Dask)
     if (py::hasattr(future_object, "done") && py::hasattr(future_object, "result"))
