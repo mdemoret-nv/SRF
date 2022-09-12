@@ -371,7 +371,7 @@ def test_map_async_with_iterables(run_segment, input_data, dask_client):
 
             return pack_data(x, lambda y: dask_client.submit(double, y))
 
-        input.pipe(ops.map_async(map_fn), ops.map(after_map_fn)).subscribe(output)
+        input.pipe(ops.map(map_fn), ops.from_future(), ops.map(after_map_fn)).subscribe(output)
 
     actual, raised_error = run_segment(input_data, node_fn)
 
