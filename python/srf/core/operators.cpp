@@ -47,6 +47,7 @@ PYBIND11_MODULE(operators, m)
 
     py::class_<PythonOperator>(m, "Operator").def_property_readonly("name", &OperatorProxy::get_name);
 
+    m.def("concat_map", &OperatorsProxy::concat_map);
     m.def("filter", &OperatorsProxy::filter);
     m.def("flat_map", &OperatorsProxy::flat_map);
     m.def("flatten", &OperatorsProxy::flatten);

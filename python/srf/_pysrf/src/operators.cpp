@@ -435,4 +435,19 @@ PythonOperator OperatorsProxy::flat_map(std::function<PyObjectObservable(pybind1
         });
     });
 }
+
+PythonOperator OperatorsProxy::concat_map(std::function<PyObjectObservable(pybind11::object x)> concat_map_fn)
+{
+    return PythonOperator("concat_map", [concat_map_fn](PyObjectObservable source) {
+        return source.concat_map([concat_map_fn](PyHolder data_object) {
+            AcquireGIL gil;
+
+            // Call the map function
+            auto returned = concat_map_fn(std::move(data_object));
+
+            return returned;
+        });
+    });
+}
+
 }  // namespace srf::pysrf
