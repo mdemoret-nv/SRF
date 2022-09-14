@@ -153,9 +153,9 @@ std::function<void(PyObjectSubscriber&)> source_fn(PyObjectHolder py_fn)
     return wrapper;
 }
 
-PyObjectObservable ObservableProxy::create(pybind11::function source_fn)
+PyObjectObservable ObservableProxy::create(pybind11::function py_fn)
 {
-    return rxcpp::observable<>::create<PyHolder>(source_fn(PyObjectHolder(std::move(source_fn))));
+    return rxcpp::observable<>::create<PyHolder>(source_fn(PyObjectHolder(std::move(py_fn))));
 }
 
 PySubscription ObservableProxy::subscribe(PyObjectObservable* self, PyObjectObserver& observer)

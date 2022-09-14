@@ -139,6 +139,28 @@ def test_flat_map(run_segment):
 
     assert actual == expected
 
+def test_create(run_segment):
+
+    input_data = [0, 1, 2, 3, 4]
+    expected = [0, 1, 2, 1, 2, 3, 2, 3, 4, 3, 4, 5, 4, 5, 6]
+    actual = []
+
+    def node_fn(input: srf.Observable, output: srf.Subscriber):
+
+        def py_fn(x):
+            def inner(subscriber):
+                subscriber.on_next(x)
+                subscriber.on_next(x+1)
+                subscriber.on_next(x+2)
+
+            return srf.Observable.create(inner)
+
+        input.pipe(ops.flat_map(py_fn)).subscribe(output)
+
+    actual, raised_error = run_segment(input_data, node_fn)
+
+    assert actual == expected
+
 
 def test_flatten(run_segment):
 
