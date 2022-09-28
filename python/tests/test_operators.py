@@ -149,6 +149,7 @@ def test_create(run_segment):
 
         def py_fn(x):
             def inner(subscriber):
+                # yield instead
                 subscriber.on_next(x)
                 subscriber.on_next(x+1)
                 subscriber.on_next(x+2)
