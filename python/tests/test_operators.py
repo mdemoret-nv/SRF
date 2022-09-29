@@ -148,11 +148,10 @@ def test_create(run_segment):
     def node_fn(input: srf.Observable, output: srf.Subscriber):
 
         def py_fn(x):
-            def inner(subscriber):
-                # yield instead
-                subscriber.on_next(x)
-                subscriber.on_next(x+1)
-                subscriber.on_next(x+2)
+            def inner():
+                yield x
+                yield x+1
+                yield x+2
 
             return srf.Observable.create(inner)
 

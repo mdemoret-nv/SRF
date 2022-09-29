@@ -122,40 +122,12 @@ PyObjectObservable ObservableProxy::iterate(pybind11::iterable source_iterable)
         }));
 }
 
-std::function<void(PyObjectSubscriber&)> source_fn(PyObjectHolder py_fn)
+PyObjectObservable ObservableProxy::create(pybind11::function generator_fn)
 {
-    auto wrapper = [py_fn](PyObjectSubscriber& subscriber) mutable {
-        auto& ctx = runnable::Context::get_runtime_context();
-
-        AcquireGIL gil;
-
-        try
-        {
-            DVLOG(10) << ctx.info() << " Starting source";
-            py_fn(subscriber);
-        } catch (const std::exception& e)
-        {
-            LOG(ERROR) << ctx.info() << "Error occurred in source. Error msg: " << e.what();
-
-            gil.release();
-            subscriber.on_error(std::current_exception());
-            return;
-        }
-
-        // Release the GIL to call on_complete
-        gil.release();
-
-        subscriber.on_completed();
-
-        DVLOG(10) << ctx.info() << " Source complete";
-    };
-
-    return wrapper;
-}
-
-PyObjectObservable ObservableProxy::create(pybind11::function py_fn)
-{
-    return rxcpp::observable<>::create<PyHolder>(source_fn(PyObjectHolder(std::move(py_fn))));
+    return rxcpp::observable<>::create<PyHolder>(source_iterate([gen_fn = PyObjectHolder(std::move(generator_fn))]() {
+        // Turn the generator function into an iterator
+        return py::iter(gen_fn());
+    }));
 }
 
 PySubscription ObservableProxy::subscribe(PyObjectObservable* self, PyObjectObserver& observer)
