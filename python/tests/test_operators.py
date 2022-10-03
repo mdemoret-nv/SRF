@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import random
 import time
 import typing
 
@@ -25,7 +26,7 @@ from srf.core import operators as ops
 @pytest.fixture
 def ex_runner():
 
-    def run_exec(segment_init):
+    def run_exec(segment_init, num_threads=1):
         pipeline = srf.Pipeline()
 
         pipeline.make_segment("my_seg", segment_init)
@@ -33,7 +34,7 @@ def ex_runner():
         options = srf.Options()
 
         # Set to 1 thread
-        options.topology.user_cpuset = "0-0"
+        options.topology.user_cpuset = f"0-{num_threads-1}"
 
         executor = srf.Executor(options)
 
@@ -49,7 +50,7 @@ def ex_runner():
 @pytest.fixture
 def run_segment(ex_runner):
 
-    def run(input_data, node_fn):
+    def run(input_data, node_fn, num_threads=1):
 
         actual = []
         raised_error = None
@@ -61,7 +62,7 @@ def run_segment(ex_runner):
             node = seg.make_node_full("test", node_fn)
             seg.make_edge(source, node)
 
-            node.launch_options.pe_count = 1
+            node.launch_options.pe_count = num_threads
 
             def sink_on_next(x):
                 actual.append(x)
@@ -77,7 +78,7 @@ def run_segment(ex_runner):
             sink = seg.make_sink("sink", sink_on_next, sink_on_error, sink_on_completed)
             seg.make_edge(node, sink)
 
-        ex_runner(segment_fn)
+        ex_runner(segment_fn, num_threads=num_threads)
 
         assert did_complete, "Sink on_completed was not called"
 
@@ -139,28 +140,61 @@ def test_flat_map(run_segment):
 
     assert actual == expected
 
-def test_create(run_segment):
-
-    input_data = [0, 1, 2, 3, 4]
-    expected = [0, 1, 2, 1, 2, 3, 2, 3, 4, 3, 4, 5, 4, 5, 6]
+def test_create_flat_map(run_segment):
+    random.seed()
+    input_data = [0, 1, 2]
+    expected = [(0, 1), (0, 2), (0, 3),
+                (1, 1), (1, 2), (1, 3),
+                (2, 1), (2, 2), (2, 3)]
     actual = []
 
     def node_fn(input: srf.Observable, output: srf.Subscriber):
 
         def py_fn(x):
             def inner():
-                yield x
-                yield x+1
-                yield x+2
+                time.sleep(0.001 * random.randrange(1, 100))
+                yield (x, 1)
+                time.sleep(0.001 * random.randrange(1, 100))
+                yield (x, 2)
+                time.sleep(0.001 * random.randrange(1, 100))
+                yield (x, 3)
 
             return srf.Observable.create(inner)
 
         input.pipe(ops.flat_map(py_fn)).subscribe(output)
 
-    actual, raised_error = run_segment(input_data, node_fn)
+    actual, raised_error = run_segment(input_data, node_fn, num_threads=len(input_data))
+
+    # flatmap data is likely out-of-order
+    assert sorted(actual) == expected
+
+
+def test_create_concat_map(run_segment):
+    random.seed()
+    input_data = [0, 1, 2]
+    expected = [(0, 1), (0, 2), (0, 3),
+                (1, 1), (1, 2), (1, 3),
+                (2, 1), (2, 2), (2, 3)]
+    actual = []
+
+    def node_fn(input: srf.Observable, output: srf.Subscriber):
+
+        def py_fn(x):
+            def inner():
+                time.sleep(0.001 * random.randrange(1, 100))
+                yield (x, 1)
+                time.sleep(0.001 * random.randrange(1, 100))
+                yield (x, 2)
+                time.sleep(0.001 * random.randrange(1, 100))
+                yield (x, 3)
+
+            return srf.Observable.create(inner)
+
+        input.pipe(ops.concat_map(py_fn)).subscribe(output)
+
+    actual, raised_error = run_segment(input_data, node_fn, num_threads=len(input_data))
 
     assert actual == expected
-
 
 def test_flatten(run_segment):
 
