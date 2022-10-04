@@ -173,9 +173,8 @@ TEST_F(TestRunnable, GenericRunnableRunWithFiber)
     runnable::LaunchOptions main;
     std::atomic<std::size_t> counter = 0;
 
-    main.engine_factory_name = "default";  // running this on main would fail, since main can only have pe_count == 1
-    main.pe_count            = 2;
-    main.engines_per_pe      = 1;
+    main.set_engine_factory_name("default");  // running this on main would fail, since main can only have pe_count == 1
+    main.set_counts(2);
 
     auto runnable = std::make_unique<TestGenericRunnable>();
     auto launcher = m_resources->launch_control().prepare_launcher(main, std::move(runnable));
@@ -196,7 +195,7 @@ TEST_F(TestRunnable, GenericRunnableRunWithFiber)
 
     // counter should be 3 for each instance
     // Queued, Running, Completed
-    EXPECT_EQ(counter, 3 * main.pe_count * main.engines_per_pe);
+    EXPECT_EQ(counter, 3 * main.pe_count() * main.engines_per_pe());
 }
 
 TEST_F(TestRunnable, GenericRunnableRunWithLaunchControl)
@@ -214,8 +213,8 @@ TEST_F(TestRunnable, GenericRunnableRunWithLaunchControl)
 TEST_F(TestRunnable, GenericRunnableRunWithThread)
 {
     runnable::LaunchOptions thread_pool;
-    thread_pool.engine_factory_name = "thread_pool";
-    thread_pool.pe_count            = 2;
+    thread_pool.set_engine_factory_name("thread_pool");
+    thread_pool.set_counts(2);
 
     auto runnable = std::make_unique<TestGenericRunnable>();
     auto runner   = m_resources->launch_control().prepare_launcher(thread_pool, std::move(runnable))->ignition();
@@ -229,8 +228,8 @@ TEST_F(TestRunnable, GenericRunnableRunWithThread)
 TEST_F(TestRunnable, FiberRunnable)
 {
     runnable::LaunchOptions factory;
-    factory.engine_factory_name = "default";
-    factory.pe_count            = 2;
+    factory.set_engine_factory_name("default");
+    factory.set_counts(2);
 
     auto runnable = std::make_unique<TestFiberRunnable>();
     auto runner   = m_resources->launch_control().prepare_launcher(factory, std::move(runnable))->ignition();
@@ -244,8 +243,8 @@ TEST_F(TestRunnable, FiberRunnable)
 TEST_F(TestRunnable, FiberRunnableMisMatch)
 {
     runnable::LaunchOptions factory;
-    factory.engine_factory_name = "thread_pool";
-    factory.pe_count            = 2;
+    factory.set_engine_factory_name("thread_pool");
+    factory.set_counts(2);
 
     auto runnable = std::make_unique<TestFiberRunnable>();
 
@@ -256,8 +255,8 @@ TEST_F(TestRunnable, FiberRunnableMisMatch)
 TEST_F(TestRunnable, RunnerOutOfScope)
 {
     runnable::LaunchOptions factory;
-    factory.engine_factory_name = "default";
-    factory.pe_count            = 2;
+    factory.set_engine_factory_name("default");
+    factory.set_counts(2);
 
     auto runnable = std::make_unique<TestFiberRunnable>();
     auto runner   = m_resources->launch_control().prepare_launcher(factory, std::move(runnable))->ignition();

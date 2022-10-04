@@ -411,7 +411,7 @@ TEST_F(TestNext, ConcurrentSinkRxRunnable)
     });
 
     runnable::LaunchOptions options;
-    options.pe_count = 2;
+    options.set_counts(2);
 
     auto runner = m_resources->launch_control().prepare_launcher(options, std::move(sink))->ignition();
     runner->await_join();

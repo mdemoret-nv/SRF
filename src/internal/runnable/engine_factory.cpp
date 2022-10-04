@@ -55,7 +55,7 @@ class FiberEngineFactory : public ::srf::runnable::EngineFactory
     std::shared_ptr<::srf::runnable::Engines> build_engines(const LaunchOptions& launch_options) final
     {
         return std::make_shared<FiberEngines>(
-            launch_options, get_next_n_queues(launch_options.pe_count), SRF_DEFAULT_FIBER_PRIORITY);
+            launch_options, get_next_n_queues(launch_options.worker_count()), SRF_DEFAULT_FIBER_PRIORITY);
     }
 
     ::srf::runnable::EngineType backend() const final
@@ -153,7 +153,7 @@ class ThreadEngineFactory : public ::srf::runnable::EngineFactory
 
     std::shared_ptr<::srf::runnable::Engines> build_engines(const LaunchOptions& launch_options) final
     {
-        auto cpu_set = get_next_n_cpus(launch_options.pe_count);
+        auto cpu_set = get_next_n_cpus(launch_options.worker_count());
         return std::make_shared<ThreadEngines>(launch_options, std::move(cpu_set), m_system_resources);
     }
 

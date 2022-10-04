@@ -64,9 +64,8 @@ void Manager::push_updates(SegmentAddresses&& segment_addresses)
 void Manager::do_service_start()
 {
     srf::runnable::LaunchOptions main;
-    main.engine_factory_name = "main";
-    main.pe_count            = 1;
-    main.engines_per_pe      = 1;
+    main.set_engine_factory_name("main");
+    main.set_counts(1, 1);
 
     auto instance    = std::make_unique<Instance>(m_pipeline, m_resources);
     auto controller  = std::make_unique<Controller>(std::move(instance));

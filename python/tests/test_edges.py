@@ -233,7 +233,7 @@ def test_multi_segment():
         # Create the source object
         # source = seg.make_source("source", source_gen)
         source = m.SourceDerivedB(seg, "source")
-        source.launch_options.pe_count = 1
+        source.launch_options.set_counts(1)
 
         egress = seg.get_egress("port1")
         seg.make_edge(source, egress)

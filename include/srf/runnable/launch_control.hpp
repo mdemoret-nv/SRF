@@ -96,8 +96,8 @@ class LaunchControl final
         CHECK(runnable) << "Null Runnable detected";
         using context_t = unwrap_context_t<runnable_context_t<RunnableT>>;
 
-        VLOG(10) << "preparing engines using engine factory " << options.engine_factory_name
-                 << "; pe_count=" << options.pe_count << "; engines_per_pe: " << options.engines_per_pe;
+        VLOG(10) << "preparing engines using engine factory " << options.engine_factory_name()
+                 << "; pe_count=" << options.pe_count() << "; engines_per_pe: " << options.engines_per_pe();
 
         // our launcher needs engines specific to the backend
         // engines are out way of running some task on the specified backend
@@ -107,7 +107,7 @@ class LaunchControl final
         std::vector<std::shared_ptr<Context>> contexts;
         if constexpr (is_fiber_runnable_v<RunnableT>)
         {
-            CHECK(get_engine_factory(options.engine_factory_name).backend() == EngineType::Fiber)
+            CHECK(get_engine_factory(options.engine_factory_name()).backend() == EngineType::Fiber)
                 << "Requested FiberRunnable to be run on a ThreadEngine";
 
             contexts = make_contexts<FiberContext<ContextWrapperT<context_t>>>(
@@ -115,14 +115,14 @@ class LaunchControl final
         }
         else if constexpr (is_thread_context_v<RunnableT>)
         {
-            CHECK(get_engine_factory(options.engine_factory_name).backend() == EngineType::Thread)
+            CHECK(get_engine_factory(options.engine_factory_name()).backend() == EngineType::Thread)
                 << "Requested ThreadRunnable to be run on a FiberEngine";
             contexts = make_contexts<ThreadContext<ContextWrapperT<context_t>>>(
                 *engines, std::forward<ContextArgsT>(context_args)...);
         }
         else
         {
-            auto backend = get_engine_factory(options.engine_factory_name).backend();
+            auto backend = get_engine_factory(options.engine_factory_name()).backend();
             if (backend == EngineType::Fiber)
             {
                 contexts = make_contexts<FiberContext<ContextWrapperT<context_t>>>(
@@ -189,8 +189,8 @@ class LaunchControl final
         CHECK(runnable) << "Null Runnable detected";
         using context_t = runnable_context_t<RunnableT>;
 
-        VLOG(10) << "preparing engines using engine factory " << options.engine_factory_name
-                 << "; pe_count=" << options.pe_count << "; engines_per_pe: " << options.engines_per_pe;
+        VLOG(10) << "preparing engines using engine factory " << options.engine_factory_name()
+                 << "; pe_count=" << options.pe_count() << "; engines_per_pe: " << options.engines_per_pe();
 
         // our launcher needs engines specific to the backend
         // engines are out way of running some task on the specified backend
@@ -200,19 +200,19 @@ class LaunchControl final
         std::vector<std::shared_ptr<Context>> contexts;
         if constexpr (is_fiber_runnable_v<RunnableT>)
         {
-            CHECK(get_engine_factory(options.engine_factory_name).backend() == EngineType::Fiber)
+            CHECK(get_engine_factory(options.engine_factory_name()).backend() == EngineType::Fiber)
                 << "Requested FiberRunnable to be run on a ThreadEngine";
             contexts = make_contexts<context_t>(*engines, std::forward<ContextArgsT>(context_args)...);
         }
         else if constexpr (is_thread_context_v<RunnableT>)
         {
-            CHECK(get_engine_factory(options.engine_factory_name).backend() == EngineType::Thread)
+            CHECK(get_engine_factory(options.engine_factory_name()).backend() == EngineType::Thread)
                 << "Requested ThreadRunnable to be run on a FiberEngine";
             contexts = make_contexts<context_t>(*engines, std::forward<ContextArgsT>(context_args)...);
         }
         else
         {
-            auto backend = get_engine_factory(options.engine_factory_name).backend();
+            auto backend = get_engine_factory(options.engine_factory_name()).backend();
             if (backend == EngineType::Fiber)
             {
                 contexts =
@@ -271,7 +271,7 @@ class LaunchControl final
 
     std::shared_ptr<Engines> build_engines(const LaunchOptions& launch_options) const
     {
-        return get_engine_factory(launch_options.engine_factory_name).build_engines(launch_options);
+        return get_engine_factory(launch_options.engine_factory_name()).build_engines(launch_options);
     }
 
     /**

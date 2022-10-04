@@ -21,6 +21,9 @@
 #include "srf/options/engine_groups.hpp"
 #include "srf/runnable/types.hpp"
 
+#include <glog/logging.h>
+
+#include <cstddef>
 #include <cstdint>
 #include <string>
 
@@ -29,15 +32,59 @@ namespace srf::runnable {
 struct LaunchOptions
 {
     LaunchOptions() = default;
-    LaunchOptions(std::string name, std::size_t pes = 1, std::size_t epps = 1) :
-      engine_factory_name(std::move(name)),
-      pe_count(pes),
-      engines_per_pe(epps)
-    {}
+    LaunchOptions(std::string name, std::size_t num_pe = 1, std::size_t num_workers = 0) :
+      m_engine_factory_name(std::move(name))
+    {
+        this->set_counts(num_pe, num_workers);
+    }
 
-    std::size_t pe_count{1};
-    std::size_t engines_per_pe{1};
-    std::string engine_factory_name{default_engine_factory_name()};
+    void set_counts(std::size_t num_pe, std::size_t num_workers = 0)
+    {
+        if (num_workers == 0)
+        {
+            // Default to 1 worker per PE if not specified
+            num_workers = num_pe;
+        }
+
+        CHECK_EQ(num_pe % num_workers, 0) << "num_pe must be divisible by num_workers";
+
+        this->m_pe_count     = num_pe;
+        this->m_worker_count = num_workers;
+
+        // Backwards compatible engines per PE
+        this->m_engines_per_pe = num_pe / num_workers;
+    }
+
+    std::size_t pe_count() const
+    {
+        return this->m_pe_count;
+    }
+
+    std::size_t engines_per_pe() const
+    {
+        return this->m_engines_per_pe;
+    }
+
+    std::size_t worker_count() const
+    {
+        return this->m_worker_count;
+    }
+
+    void set_engine_factory_name(const std::string& engine_factory_name)
+    {
+        this->m_engine_factory_name = engine_factory_name;
+    }
+
+    const std::string& engine_factory_name() const
+    {
+        return this->m_engine_factory_name;
+    }
+
+  protected:
+    std::size_t m_pe_count{1};
+    std::size_t m_engines_per_pe{1};
+    std::string m_engine_factory_name{default_engine_factory_name()};
+    std::size_t m_worker_count{1};
 };
 
 struct ServiceLaunchOptions : public LaunchOptions

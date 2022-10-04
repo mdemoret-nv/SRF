@@ -18,10 +18,10 @@ import pytest
 import srf
 
 
-@pytest.mark.parametrize("engines_per_pe", [1, 2])
-@pytest.mark.parametrize("pe_count", [1, 3])
+@pytest.mark.parametrize("pe_per_worker", [1, 2])
+@pytest.mark.parametrize("worker_count", [1, 3])
 @pytest.mark.parametrize("source_type", ["iterator", "iterable", "function"])
-def test_launch_options_source(source_type: str, pe_count: int, engines_per_pe: int):
+def test_launch_options_source(source_type: str, worker_count: int, pe_per_worker: int):
 
     hit_count = 0
 
@@ -33,7 +33,7 @@ def test_launch_options_source(source_type: str, pe_count: int, engines_per_pe: 
         yield int(3)
 
     if (source_type == "iterator"):
-        if (pe_count > 0 or engines_per_pe > 0):
+        if (worker_count > 0 or pe_per_worker > 0):
             # Currently, errors that occur in pipeline threads do not bubble back up to python and simply cause a
             # segfault. Multi-threaded iterator sources intentionally throw an exception that should be tested. However,
             # there is no current way to catch that error on the python side and test for it. Until that is fixed, these
@@ -51,10 +51,9 @@ def test_launch_options_source(source_type: str, pe_count: int, engines_per_pe: 
 
     def segment_init(seg: srf.Builder):
 
-        src_node = seg.make_source("my_src", source)
+        src_node: srf.SegmentObject = seg.make_source("my_src", source)
 
-        src_node.launch_options.pe_count = pe_count
-        src_node.launch_options.engines_per_pe = engines_per_pe
+        src_node.launch_options.set_counts(worker_count * pe_per_worker, worker_count)
 
         def node_fn(x: int):
             nonlocal hit_count
@@ -73,7 +72,7 @@ def test_launch_options_source(source_type: str, pe_count: int, engines_per_pe: 
     options = srf.Options()
 
     # Set to 1 thread
-    options.topology.user_cpuset = "0-{}".format(pe_count)
+    options.topology.user_cpuset = "0-{}".format(worker_count)
 
     executor = srf.Executor(options)
 
@@ -85,10 +84,10 @@ def test_launch_options_source(source_type: str, pe_count: int, engines_per_pe: 
 
     if (source_type == "iterator"):
         # Cant restart iterators. So only 1 loop is expected
-        pe_count = 1
-        engines_per_pe = 1
+        worker_count = 1
+        pe_per_worker = 1
 
-    assert hit_count == 3 * pe_count * engines_per_pe
+    assert hit_count == 3 * worker_count * pe_per_worker
 
 
 def test_launch_options_iterable():
@@ -102,8 +101,7 @@ def test_launch_options_iterable():
 
         src_node = seg.make_source("my_src", [1, 2, 3])
 
-        src_node.launch_options.pe_count = pe_count
-        src_node.launch_options.engines_per_pe = engines_per_pe
+        src_node.launch_options.set_counts(pe_count * engines_per_pe, pe_count)
 
         def node_fn(x: int):
             nonlocal hit_count
@@ -143,7 +141,7 @@ def test_launch_options_properties():
         def source_gen():
             yield int(1)
 
-        src_node = seg.make_source("my_src", source_gen)
+        src_node: srf.SegmentObject = seg.make_source("my_src", source_gen)
 
         # Create a simple sink to avoid errors
         sink_node = seg.make_sink("my_sink", lambda x: None, None, None)
@@ -151,14 +149,19 @@ def test_launch_options_properties():
         seg.make_edge(src_node, sink_node)
 
         assert src_node.launch_options.pe_count == 1, "Default should be 1"
+        assert src_node.launch_options.worker_count == 1, "Default should be 1"
         assert src_node.launch_options.engines_per_pe == 1, "Default should be 1"
         assert src_node.launch_options.engine_factory_name == "default", "Default should be 'default'"
 
-        src_node.launch_options.pe_count = 2
+        src_node.launch_options.set_counts(2)
         assert src_node.launch_options.pe_count == 2, "Set and get should match"
+        assert src_node.launch_options.worker_count == 2, "Default should match pe_count"
+        assert src_node.launch_options.engines_per_pe == 1, "Default should be 1"
 
-        src_node.launch_options.engines_per_pe = 2
-        assert src_node.launch_options.engines_per_pe == 2, "Set and get should match"
+        src_node.launch_options.set_counts(6, 3)
+        assert src_node.launch_options.pe_count == 6, "Set and get should match"
+        assert src_node.launch_options.worker_count == 3, "Set and get should match"
+        assert src_node.launch_options.engines_per_pe == 2, "pe_count = worker_count * engines_per_pe"
 
         src_node.launch_options.engine_factory_name = "fiber"
         assert src_node.launch_options.engine_factory_name == "fiber", "Set and get should match"
@@ -166,16 +169,16 @@ def test_launch_options_properties():
         # Save a reference
         lo = src_node.launch_options
 
-        src_node.launch_options.pe_count = 5
+        src_node.launch_options.set_counts(5)
         assert lo.pe_count == 5, "Reference launch_options should match"
 
-        lo.pe_count = 3
+        lo.set_counts(3)
         assert src_node.launch_options.pe_count == 3, "Should be able to set from referenced object"
 
-        src_node.launch_options.engines_per_pe = 5
+        src_node.launch_options.set_counts(5, 1)
         assert lo.engines_per_pe == 5, "Reference launch_options should match"
 
-        lo.engines_per_pe = 3
+        lo.set_counts(3, 1)
         assert src_node.launch_options.engines_per_pe == 3, "Should be able to set from referenced object"
 
         src_node.launch_options.engine_factory_name = "thread"

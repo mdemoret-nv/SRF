@@ -35,18 +35,24 @@ namespace srf::internal::runnable {
 
 void ThreadEngines::initialize_launchers()
 {
-    CHECK_EQ(launch_options().pe_count, m_cpu_set.weight())
-        << "mismatch in the number of cores in the cpu set with respect to the requested pe_count";
-    CHECK_GE(launch_options().engines_per_pe, 1);
+    // CHECK_EQ(launch_options().pe_count(), m_cpu_set.weight())
+    //     << "mismatch in the number of cores in the cpu set with respect to the requested pe_count";
+    // CHECK_GE(launch_options().engines_per_pe(), 1);
 
-    m_cpu_set.for_each_bit([this](std::uint32_t idx, std::uint32_t cpu_id) {
-        CpuSet cpu;
-        cpu.only(cpu_id);
-        for (int i = 0; i < launch_options().engines_per_pe; ++i)
-        {
-            add_launcher(std::make_shared<ThreadEngine>(cpu, m_system));
-        }
-    });
+    // Loop over the total number of PE and create one launcher for each
+    for (int j = 0; j < launch_options().pe_count(); ++j)
+    {
+        add_launcher(std::make_shared<ThreadEngine>(m_cpu_set.next_binding(), m_system));
+    }
+
+    // m_cpu_set.for_each_bit([this](std::uint32_t idx, std::uint32_t cpu_id) {
+    //     CpuSet cpu;
+    //     cpu.only(cpu_id);
+    //     for (int i = 0; i < launch_options().engines_per_pe(); ++i)
+    //     {
+    //         add_launcher(std::make_shared<ThreadEngine>(cpu, m_system));
+    //     }
+    // });
 }
 
 ThreadEngines::ThreadEngines(CpuSet cpu_set, const system::Resources& system) :

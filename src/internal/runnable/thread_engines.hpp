@@ -38,7 +38,7 @@ class ThreadEngines final : public Engines
   private:
     void initialize_launchers();
 
-    CpuSet m_cpu_set;
+    RoundRobinCpuSet m_cpu_set;
     const system::Resources& m_system;
 };
 

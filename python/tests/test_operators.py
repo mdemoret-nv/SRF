@@ -62,7 +62,7 @@ def run_segment(ex_runner):
             node = seg.make_node_full("test", node_fn)
             seg.make_edge(source, node)
 
-            node.launch_options.pe_count = num_threads
+            node.launch_options.set_counts(num_threads)
 
             def sink_on_next(x):
                 actual.append(x)
@@ -140,17 +140,17 @@ def test_flat_map(run_segment):
 
     assert actual == expected
 
+
 def test_create_flat_map(run_segment):
     random.seed()
     input_data = [0, 1, 2]
-    expected = [(0, 1), (0, 2), (0, 3),
-                (1, 1), (1, 2), (1, 3),
-                (2, 1), (2, 2), (2, 3)]
+    expected = [(0, 1), (0, 2), (0, 3), (1, 1), (1, 2), (1, 3), (2, 1), (2, 2), (2, 3)]
     actual = []
 
     def node_fn(input: srf.Observable, output: srf.Subscriber):
 
         def py_fn(x):
+
             def inner():
                 time.sleep(0.001 * random.randrange(1, 100))
                 yield (x, 1)
@@ -172,21 +172,26 @@ def test_create_flat_map(run_segment):
 def test_create_concat_map(run_segment):
     random.seed()
     input_data = [0, 1, 2]
-    expected = [(0, 1), (0, 2), (0, 3),
-                (1, 1), (1, 2), (1, 3),
-                (2, 1), (2, 2), (2, 3)]
+    expected = [(0, 1), (0, 2), (0, 3), (1, 1), (1, 2), (1, 3), (2, 1), (2, 2), (2, 3)]
     actual = []
 
     def node_fn(input: srf.Observable, output: srf.Subscriber):
 
         def py_fn(x):
+
             def inner():
+                print("Inner starting on thread")
+
                 time.sleep(0.001 * random.randrange(1, 100))
                 yield (x, 1)
                 time.sleep(0.001 * random.randrange(1, 100))
                 yield (x, 2)
                 time.sleep(0.001 * random.randrange(1, 100))
                 yield (x, 3)
+
+                print("Inner complete")
+
+            print("Creating inner observable")
 
             return srf.Observable.create(inner)
 
@@ -195,6 +200,7 @@ def test_create_concat_map(run_segment):
     actual, raised_error = run_segment(input_data, node_fn, num_threads=len(input_data))
 
     assert actual == expected
+
 
 def test_flatten(run_segment):
 

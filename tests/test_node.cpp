@@ -443,7 +443,7 @@ TEST_P(ParallelTests, SourceMultiThread)
             s.on_completed();
         });
 
-        source->launch_options().pe_count = source_thread_count;
+        source->launch_options().set_counts(source_thread_count);
 
         auto sink = seg.make_sink<int>(
             "sinkRef",
@@ -544,7 +544,7 @@ TEST_P(ParallelTests, SinkMultiThread)
                 DVLOG(1) << "Sink on_completed" << std::endl;
             });
 
-        sink->launch_options().pe_count = thread_count;
+        sink->launch_options().set_counts(thread_count);
 
         seg.make_edge(source, sink);
     });
@@ -612,7 +612,7 @@ TEST_P(ParallelTests, NodeMultiThread)
                                            return x * 2;
                                        }));
 
-        node->launch_options().pe_count = thread_count;
+        node->launch_options().set_counts(thread_count);
 
         seg.make_edge(source, node);
 

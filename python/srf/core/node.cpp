@@ -44,9 +44,20 @@ PYBIND11_MODULE(node, m)
     pysrf::import(m, "srf.core.common");
 
     py::class_<srf::runnable::LaunchOptions>(m, "LaunchOptions")
-        .def_readwrite("pe_count", &srf::runnable::LaunchOptions::pe_count)
-        .def_readwrite("engines_per_pe", &srf::runnable::LaunchOptions::engines_per_pe)
-        .def_readwrite("engine_factory_name", &srf::runnable::LaunchOptions::engine_factory_name);
+        .def_property_readonly("pe_count", &srf::runnable::LaunchOptions::pe_count)
+        .def_property_readonly("engines_per_pe", &srf::runnable::LaunchOptions::engines_per_pe)
+        .def_property_readonly("worker_count", &srf::runnable::LaunchOptions::worker_count)
+        .def_property("engine_factory_name",
+                      &srf::runnable::LaunchOptions::engine_factory_name,
+                      &srf::runnable::LaunchOptions::set_engine_factory_name)
+        .def(
+            "set_counts",
+            [](srf::runnable::LaunchOptions& self, std::size_t num_pe, std::size_t num_workers) {
+                // Forward to the class
+                self.set_counts(num_pe, num_workers);
+            },
+            py::arg("num_pe"),
+            py::arg("num_workers") = 0);
 
     py::class_<srf::segment::ObjectProperties, std::shared_ptr<srf::segment::ObjectProperties>>(m, "SegmentObject")
         .def_property_readonly("name", &PyNode::name)

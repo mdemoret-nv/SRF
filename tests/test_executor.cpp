@@ -171,7 +171,7 @@ TEST_F(TestExecutor, LifeCycleSingleSegment)
         s.add_throughput_counter(rx_source);
 
         // we will run the source on a dedicated thread
-        rx_source->launch_options().engine_factory_name = "single_use_threads";
+        rx_source->launch_options().set_engine_factory_name("single_use_threads");
 
         // add scalar node
         auto rx_node =
@@ -316,8 +316,7 @@ TEST_F(TestExecutor, LifeCycleSingleSegmentConcurrentSource)
             s.on_completed();
         });
 
-        rx_source->launch_options().pe_count       = 2;
-        rx_source->launch_options().engines_per_pe = 2;
+        rx_source->launch_options().set_counts(4, 2);
 
         auto rx_sink =
             s.make_sink<std::size_t>("rx_sink", rxcpp::make_observer_dynamic<std::size_t>([&](std::size_t x) {
@@ -370,8 +369,7 @@ TEST_F(TestExecutor, LifeCycleSingleSegmentConcurrentSourceWithStaggeredShutdown
             s.on_completed();
         });
 
-        rx_source->launch_options().pe_count       = 2;
-        rx_source->launch_options().engines_per_pe = 2;
+        rx_source->launch_options().set_counts(4, 2);
 
         auto rx_sink =
             s.make_sink<std::size_t>("rx_sink", rxcpp::make_observer_dynamic<std::size_t>([&](std::size_t x) {
