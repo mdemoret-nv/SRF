@@ -50,6 +50,7 @@ class Thread
     ~Thread();
     const std::thread& thread() const;
     std::thread release() {
+      m_released = true;
       return std::move(m_thread);
     };
 
@@ -62,6 +63,7 @@ class Thread
     Thread(std::shared_ptr<const ThreadResources> resources, std::thread&& thread);
     std::shared_ptr<const ThreadResources> m_resources;
     std::thread m_thread;  // use std::jthread in c++20; require std::stop_token in task signature
+    bool m_released{false};
 
     friend ThreadResources;
 };

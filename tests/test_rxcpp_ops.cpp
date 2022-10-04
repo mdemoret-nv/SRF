@@ -244,8 +244,8 @@ TEST_F(TestRxcppOps, flat_map_create_in_segment)
                     return rxcpp::observable<>::create<int>([iterations, v](rxcpp::subscriber<int> s) {
                         for (int i = 1; i < iterations + 1; ++i)
                         {
-                            // auto& context = srf::runnable::Context::get_runtime_context();
-                            // bool is_fiber = context.execution_context() == runnable::EngineType::Fiber;
+                            //auto& context = srf::runnable::Context::get_runtime_context();
+                            //bool is_fiber = context.execution_context() == runnable::EngineType::Fiber;
                             auto ri = random_int(1, 100);
                             auto st = 1ms * ri;
                             VLOG(1) << "[" << boost::this_fiber::get_id() << "] (" << v

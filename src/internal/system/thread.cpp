@@ -41,7 +41,7 @@ Thread::Thread(std::shared_ptr<const ThreadResources> resources, std::thread&& t
 
 Thread::~Thread()
 {
-    if (m_thread.joinable())
+    if (!m_released && m_thread.joinable())
     {
         DVLOG(10) << "[system::Thread]: joining tid=" << m_thread.get_id();
         m_thread.join();
