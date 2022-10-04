@@ -221,3 +221,67 @@ TEST_F(TestRxcppOps, flat_map_in_segment)
     pipeline->register_segment(segdef);
     execute_pipeline(std::move(pipeline), iterations);
 }
+
+TEST_F(TestRxcppOps, flat_map_create_in_segment)
+{
+    std::size_t iterations = 3;
+
+    auto init = [&iterations](segment::Builder& segment) {
+        auto src = segment.make_source<int>("src", [&iterations](rxcpp::subscriber<int> s) {
+            for (auto i = 0; i < iterations; ++i)
+            {
+                VLOG(10) << "src: " << i << std::endl;
+                s.on_next(i);
+            }
+            s.on_completed();
+        });
+
+        auto internal_1 = segment.make_node<int, std::string>(
+            "internal_1",
+            rxcpp::operators::flat_map(
+                [iterations](int v) {
+                    return rxcpp::observable<>::create<int>([iterations, v](rxcpp::subscriber<int> s) {
+                        for (int i = 1; i < iterations + 1; ++i)
+                        {
+                            auto& context = srf::runnable::Context::get_runtime_context();
+                            bool is_fiber = context.execution_context() == runnable::EngineType::Fiber;
+                            auto ri       = random_int(1, 100);
+                            auto st       = 1ms * ri;
+                            VLOG(1) << "[" << boost::this_fiber::get_id() << "] (" << v << ") is_fiber=" << is_fiber
+                                    << " Sleeping for: " << ri << "ms" << std::endl;
+                            boost::this_fiber::sleep_for(st);
+                            VLOG(1) << "[" << boost::this_fiber::get_id() << "] woke: " << v << std::endl;
+
+                            if (s.is_subscribed())
+                            {
+                                s.on_next(i);
+                            }
+                        }
+                        s.on_completed();
+                    });
+                },
+                [](int v1, long v2) {
+                    std::stringstream s;
+                    s << v1 << " - " << v2;
+                    return s.str();
+                }),
+
+            rxcpp::operators::map([](std::string v) {
+                VLOG(10) << "Map: " << v << std::endl;
+                return v;
+            }));
+
+        auto sink = segment.make_sink<std::string>(
+            "sink",
+            [](std::string v) { VLOG(1) << "Sink: " << v << std::endl; },
+            []() { VLOG(10) << "Completed" << std::endl; });
+
+        segment.make_edge(src, internal_1);
+        segment.make_edge(internal_1, sink);
+    };
+
+    auto segdef   = segment::Definition::create("segment_stats_test", init);
+    auto pipeline = pipeline::make_pipeline();
+    pipeline->register_segment(segdef);
+    execute_pipeline(std::move(pipeline), iterations);
+}
