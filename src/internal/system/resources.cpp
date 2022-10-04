@@ -33,6 +33,16 @@ Resources::Resources(SystemProvider system) :
   m_fiber_manager(*this)
 {}
 
+std::unique_ptr<Resources> Resources::create(const SystemProvider& system)
+{
+    return std::make_unique<Resources>(system);
+}
+
+std::unique_ptr<Resources> Resources::create(std::shared_ptr<const SystemProvider> system)
+{
+    return std::make_unique<Resources>(*system);
+}
+
 FiberTaskQueue& Resources::get_task_queue(std::uint32_t cpu_id) const
 {
     return m_fiber_manager.task_queue(cpu_id);

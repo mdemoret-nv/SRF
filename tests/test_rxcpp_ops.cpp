@@ -20,6 +20,7 @@
 
 #include "srf/core/executor.hpp"
 #include "srf/pipeline/pipeline.hpp"
+#include "srf/runnable/rx_thread_factory.hpp"
 #include "srf/segment/builder.hpp"
 #include "srf/segment/definition.hpp"
 #include "srf/utils/type_utils.hpp"
@@ -243,11 +244,12 @@ TEST_F(TestRxcppOps, flat_map_create_in_segment)
                     return rxcpp::observable<>::create<int>([iterations, v](rxcpp::subscriber<int> s) {
                         for (int i = 1; i < iterations + 1; ++i)
                         {
-                            auto& context = srf::runnable::Context::get_runtime_context();
-                            bool is_fiber = context.execution_context() == runnable::EngineType::Fiber;
-                            auto ri       = random_int(1, 100);
-                            auto st       = 1ms * ri;
-                            VLOG(1) << "[" << boost::this_fiber::get_id() << "] (" << v << ") is_fiber=" << is_fiber
+                            // auto& context = srf::runnable::Context::get_runtime_context();
+                            // bool is_fiber = context.execution_context() == runnable::EngineType::Fiber;
+                            auto ri = random_int(1, 100);
+                            auto st = 1ms * ri;
+                            VLOG(1) << "[" << boost::this_fiber::get_id() << "] (" << v
+                                    << ")"  // is_fiber=" << is_fiber
                                     << " Sleeping for: " << ri << "ms" << std::endl;
                             boost::this_fiber::sleep_for(st);
                             VLOG(1) << "[" << boost::this_fiber::get_id() << "] woke: " << v << std::endl;
@@ -264,7 +266,8 @@ TEST_F(TestRxcppOps, flat_map_create_in_segment)
                     std::stringstream s;
                     s << v1 << " - " << v2;
                     return s.str();
-                }),
+                },
+                srf::runnable::observe_on_new_srf_thread()),
 
             rxcpp::operators::map([](std::string v) {
                 VLOG(10) << "Map: " << v << std::endl;

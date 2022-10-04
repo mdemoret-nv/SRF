@@ -49,6 +49,9 @@ class Thread
   public:
     ~Thread();
     const std::thread& thread() const;
+    std::thread release() {
+      return std::move(m_thread);
+    };
 
     Thread(Thread&&) noexcept = default;
     Thread& operator=(Thread&&) noexcept = default;
