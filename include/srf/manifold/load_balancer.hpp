@@ -72,8 +72,6 @@ class LoadBalancer : public CompositeManifold<MuxedIngress<T>, RoundRobinEgress<
     {
         m_launch_options.set_engine_factory_name("main");
         m_launch_options.set_counts(8, 1);
-        // m_launch_options.m_pe_count          = 1;
-        // m_launch_options.m_engines_per_pe    = 8;
 
         // construct any resources
         this->resources()

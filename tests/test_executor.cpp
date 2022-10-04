@@ -24,6 +24,7 @@
 #include "srf/options/options.hpp"
 #include "srf/options/topology.hpp"
 #include "srf/pipeline/pipeline.hpp"
+#include "srf/runnable/types.hpp"
 #include "srf/segment/builder.hpp"
 #include "srf/segment/context.hpp"
 #include "srf/segment/definition.hpp"
@@ -31,11 +32,15 @@
 #include "srf/segment/ingress_ports.hpp"
 #include "srf/segment/segment.hpp"
 #include "srf/types.hpp"
+#include "srf/utils/string_utils.hpp"
 
 #include <boost/fiber/buffered_channel.hpp>
 #include <boost/fiber/channel_op_status.hpp>
 #include <boost/fiber/future/async.hpp>
 #include <boost/fiber/future/future.hpp>
+#include <gtest/gtest.h>
+#include <hwloc.h>
+#include <hwloc/bitmap.h>
 #include <rxcpp/operators/rx-map.hpp>
 #include <rxcpp/rx-includes.hpp>
 #include <rxcpp/rx-observer.hpp>
@@ -43,11 +48,14 @@
 #include <rxcpp/rx-subscriber.hpp>
 
 #include <chrono>
+#include <cstddef>
+#include <cstdint>
 #include <memory>
 #include <mutex>
 #include <ostream>
 #include <string>
 #include <thread>
+#include <tuple>
 #include <utility>
 
 // IWYU thinks we need exception & vector for segment.make_source

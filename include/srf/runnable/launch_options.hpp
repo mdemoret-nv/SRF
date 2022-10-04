@@ -46,13 +46,23 @@ struct LaunchOptions
             num_workers = num_pe;
         }
 
-        CHECK_EQ(num_pe % num_workers, 0) << "num_pe must be divisible by num_workers";
+        if (num_pe > num_workers)
+        {
+            CHECK_EQ(num_pe % num_workers, 0) << "If num_pe > num_workers, num_pe must be divisible by num_workers";
+
+            this->m_pe_per_worker = num_pe / num_workers;
+            this->m_worker_per_pe = 1;
+        }
+        else
+        {
+            CHECK_EQ(num_workers % num_pe, 0) << "If num_pe < num_workers, num_workers must be divisible by num_pe";
+
+            this->m_pe_per_worker = 1;
+            this->m_worker_per_pe = num_workers / num_pe;
+        }
 
         this->m_pe_count     = num_pe;
         this->m_worker_count = num_workers;
-
-        // Backwards compatible engines per PE
-        this->m_engines_per_pe = num_pe / num_workers;
     }
 
     std::size_t pe_count() const
@@ -60,9 +70,20 @@ struct LaunchOptions
         return this->m_pe_count;
     }
 
+    std::size_t pe_per_worker() const
+    {
+        return this->m_pe_per_worker;
+    }
+
+    std::size_t worker_per_pe() const
+    {
+        return this->m_worker_per_pe;
+    }
+
+    // Deprecated property. Use pe_per_worker().
     std::size_t engines_per_pe() const
     {
-        return this->m_engines_per_pe;
+        return this->m_pe_per_worker;
     }
 
     std::size_t worker_count() const
@@ -82,9 +103,12 @@ struct LaunchOptions
 
   protected:
     std::size_t m_pe_count{1};
-    std::size_t m_engines_per_pe{1};
     std::string m_engine_factory_name{default_engine_factory_name()};
     std::size_t m_worker_count{1};
+
+    // Derived values
+    std::size_t m_pe_per_worker{0};
+    std::size_t m_worker_per_pe{0};
 };
 
 struct ServiceLaunchOptions : public LaunchOptions

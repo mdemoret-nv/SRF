@@ -21,22 +21,27 @@
 #include "internal/system/system_provider.hpp"
 
 #include "srf/core/bitmap.hpp"
+#include "srf/core/executor.hpp"
 #include "srf/options/engine_groups.hpp"
 #include "srf/options/options.hpp"
 #include "srf/options/topology.hpp"
+#include "srf/pipeline/pipeline.hpp"
 #include "srf/runnable/context.hpp"
+#include "srf/runnable/fiber_context.hpp"
 #include "srf/runnable/forward.hpp"
 #include "srf/runnable/launch_control.hpp"
 #include "srf/runnable/launch_options.hpp"
 #include "srf/runnable/launcher.hpp"
 #include "srf/runnable/runnable.hpp"
 #include "srf/runnable/runner.hpp"
+#include "srf/runnable/thread_context.hpp"
 #include "srf/runnable/type_traits.hpp"
 #include "srf/runnable/types.hpp"
 
 #include <boost/fiber/operations.hpp>
 #include <glog/logging.h>
 #include <gtest/gtest.h>
+#include <hwloc.h>
 
 #include <atomic>
 #include <chrono>
@@ -67,17 +72,24 @@ static std::shared_ptr<internal::system::System> make_system(std::function<void(
 class TestRunnable : public ::testing::Test
 {
   protected:
+    virtual runnable::EngineType get_defaul_engine_type() const
+    {
+        return runnable::EngineType::Fiber;
+    }
+
     void SetUp() override
     {
         m_system_resources = std::make_unique<internal::system::Resources>(
-            internal::system::SystemProvider(make_system([](Options& options) {
+            internal::system::SystemProvider(make_system([this](Options& options) {
                 options.topology().user_cpuset("0-3");
                 options.topology().restrict_gpus(true);
-                options.engine_factories().set_engine_factory_options("thread_pool", [](EngineFactoryOptions& options) {
-                    options.engine_type   = runnable::EngineType::Thread;
-                    options.allow_overlap = false;
-                    options.cpu_count     = 2;
-                });
+                options.engine_factories().set_default_engine_type(this->get_defaul_engine_type());
+                // options.engine_factories().set_engine_factory_options("thread_pool", [](EngineFactoryOptions&
+                // options) {
+                //     options.engine_type   = runnable::EngineType::Thread;
+                //     options.allow_overlap = true;
+                //     options.cpu_count     = 2;
+                // });
             })));
 
         m_resources = std::make_unique<internal::runnable::Resources>(*m_system_resources, 0);
@@ -139,6 +151,21 @@ class TestThreadRunnable final : public runnable::ThreadRunnable<>
         }
         LOG(INFO) << info(ctx) << ": do_run end";
     }
+};
+
+template <typename ContextT = runnable::Context>
+class TestLambdaRunnable : public runnable::RunnableWithContext<ContextT>
+{
+  public:
+    TestLambdaRunnable(std::function<void(ContextT& ctx)> lambda) : m_lambda(std::move(lambda)) {}
+
+  private:
+    void run(ContextT& ctx) override
+    {
+        this->m_lambda(ctx);
+    }
+
+    std::function<void(ContextT& ctx)> m_lambda;
 };
 
 TEST_F(TestRunnable, TypeTraitsGeneric)
@@ -263,6 +290,166 @@ TEST_F(TestRunnable, RunnerOutOfScope)
 
     runner->await_live();
 }
+
+TEST_F(TestRunnable, PEandWorkerCounts)
+{
+    std::atomic<std::size_t> counter = 0;
+
+    runnable::LaunchOptions fibers_options;
+
+    // Test name
+    fibers_options.set_engine_factory_name("fibers");
+    EXPECT_EQ(fibers_options.engine_factory_name(), "fibers");
+
+    // Test setting counts without worker count
+    fibers_options.set_counts(3);
+    EXPECT_EQ(fibers_options.pe_count(), 3);
+    EXPECT_EQ(fibers_options.worker_count(), 3);
+    EXPECT_EQ(fibers_options.engines_per_pe(), 1);
+
+    // Test setting both PE and workers
+    fibers_options.set_counts(4, 4);
+    EXPECT_EQ(fibers_options.pe_count(), 4);
+    EXPECT_EQ(fibers_options.worker_count(), 4);
+    EXPECT_EQ(fibers_options.engines_per_pe(), 1);
+
+    // Test setting PE > Workers
+    fibers_options.set_counts(6, 2);
+    EXPECT_EQ(fibers_options.pe_count(), 6);
+    EXPECT_EQ(fibers_options.worker_count(), 2);
+    EXPECT_EQ(fibers_options.engines_per_pe(), 3);
+
+    // Test setting both workers > PE
+    fibers_options.set_counts(1, 5);
+    EXPECT_EQ(fibers_options.pe_count(), 1);
+    EXPECT_EQ(fibers_options.worker_count(), 5);
+    EXPECT_EQ(fibers_options.engines_per_pe(), 1);
+}
+
+class LaunchOptionsSuite
+  : public TestRunnable,
+    public testing::WithParamInterface<std::tuple<runnable::EngineType, std::size_t, std::size_t>>
+{
+  public:
+    runnable::EngineType engine_type() const
+    {
+        return std::get<0>(GetParam());
+    }
+
+    std::size_t pe_count() const
+    {
+        return std::get<1>(GetParam());
+    }
+
+    std::size_t worker_count() const
+    {
+        return std::get<2>(GetParam());
+    }
+
+  protected:
+    // Override the engine type based on the parameter
+    runnable::EngineType get_defaul_engine_type() const override
+    {
+        return this->engine_type();
+    }
+};
+
+TEST_P(LaunchOptionsSuite, EngineFactoriesType)
+{
+    runnable::LaunchOptions factory;
+    factory.set_engine_factory_name("default");
+    factory.set_counts(this->pe_count(), this->worker_count());
+
+    std::mutex mutex;
+    std::set<std::size_t> unique_thread_ids;
+    std::map<std::size_t, std::size_t> thread_id_counts;
+    std::map<std::uint32_t, std::set<std::size_t>> cpuid_thread_counts;
+
+    auto add_thread_id = [&](runnable::Context& ctx) {
+        std::lock_guard<decltype(mutex)> lock(mutex);
+
+        auto id = std::hash<std::thread::id>()(std::this_thread::get_id());
+
+        // Get the current topology
+        hwloc_topology_t topology;
+        hwloc_topology_init(&topology);
+        hwloc_topology_load(topology);
+
+        hwloc_cpuset_t cpu_set = hwloc_bitmap_alloc();
+        // hwloc_get_last_cpu_location(topology, cpu_set, HWLOC_CPUBIND_THREAD);
+        auto ret = hwloc_get_cpubind(topology, cpu_set, HWLOC_CPUBIND_THREAD);
+
+        // Now make a bitmap from this
+        Bitmap bitmap(cpu_set);
+
+        // Get the vector of CPU IDs
+        auto cpu_ids = bitmap.vec();
+
+        for (auto cpu_id : cpu_ids)
+        {
+            cpuid_thread_counts[cpu_id].insert(id);
+        }
+
+        hwloc_bitmap_free(cpu_set);
+        hwloc_topology_destroy(topology);
+
+        unique_thread_ids.insert(id);
+
+        auto found = thread_id_counts.find(id);
+
+        if (found == thread_id_counts.end())
+        {
+            thread_id_counts[id] = 0;
+        }
+
+        thread_id_counts[id]++;
+    };
+
+    std::unique_ptr<srf::runnable::Runner> runner = nullptr;
+
+    if (this->engine_type() == runnable::EngineType::Fiber)
+    {
+        auto runnable = std::make_unique<TestLambdaRunnable<runnable::FiberContext<>>>(add_thread_id);
+        runner        = m_resources->launch_control().prepare_launcher(factory, std::move(runnable))->ignition();
+    }
+    else
+    {
+        auto runnable = std::make_unique<TestLambdaRunnable<runnable::ThreadContext<>>>(add_thread_id);
+        runner        = m_resources->launch_control().prepare_launcher(factory, std::move(runnable))->ignition();
+    }
+
+    runner->await_live();
+    runner->await_join();
+
+    // Make sure that we have the right thread count. Will be either the number of PE count (if PE < Workers) or the
+    // Worker count (if PE > Workers)
+    EXPECT_EQ(cpuid_thread_counts.size(), std::min(this->worker_count(), this->pe_count()));
+
+    std::size_t threads_per_cpuid = std::max(this->pe_count() / this->worker_count(), 1UL);
+
+    // If we are using fibers, there will only ever be 1 thread per core
+    if (this->engine_type() == runnable::EngineType::Fiber)
+    {
+        threads_per_cpuid = 1;
+    }
+
+    // Check for the right number of PE per thread
+    for (auto const& pair : cpuid_thread_counts)
+    {
+        EXPECT_EQ(pair.second.size(), threads_per_cpuid);
+    }
+}
+
+INSTANTIATE_TEST_SUITE_P(TestRunnable,
+                         LaunchOptionsSuite,
+                         testing::Combine(testing::Values(runnable::EngineType::Fiber, runnable::EngineType::Thread),
+                                          testing::Values(1, 2, 4),
+                                          testing::Values(1, 2, 4)),
+                         [](const testing::TestParamInfo<LaunchOptionsSuite::ParamType>& info) {
+                             return SRF_CONCAT_STR(
+                                 (std::get<0>(info.param) == runnable::EngineType::Fiber ? "Fiber" : "Thread")
+                                 << "PE" << std::get<1>(info.param) << "Workers" << std::get<2>(info.param));
+                         });
 
 // Move the remaining tests to TestNode
 

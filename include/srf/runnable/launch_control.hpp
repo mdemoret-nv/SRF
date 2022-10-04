@@ -204,7 +204,7 @@ class LaunchControl final
                 << "Requested FiberRunnable to be run on a ThreadEngine";
             contexts = make_contexts<context_t>(*engines, std::forward<ContextArgsT>(context_args)...);
         }
-        else if constexpr (is_thread_context_v<RunnableT>)
+        else if constexpr (is_thread_runnable_v<RunnableT>)
         {
             CHECK(get_engine_factory(options.engine_factory_name()).backend() == EngineType::Thread)
                 << "Requested ThreadRunnable to be run on a FiberEngine";
