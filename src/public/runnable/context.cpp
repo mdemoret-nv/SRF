@@ -107,6 +107,17 @@ void Context::init(const Runner& runner)
     m_runner = &runner;
 }
 
+void Context::init_tmp()
+{
+    auto& fiber_local = FiberLocalContext::get();
+    fiber_local.reset(new FiberLocalContext());
+    fiber_local->m_context = this;
+
+    std::stringstream ss;
+    this->init_info(ss);
+    m_info = ss.str();
+}
+
 void Context::finish()
 {
     if (m_exception_ptr)
@@ -128,7 +139,10 @@ void Context::set_exception(std::exception_ptr exception_ptr)
         if (m_exception_ptr == nullptr)
         {
             m_exception_ptr = std::move(std::current_exception());
-            m_runner->kill();
+            if (m_runner != nullptr) 
+            {
+                m_runner->kill();
+            }
         }
     }
 }
