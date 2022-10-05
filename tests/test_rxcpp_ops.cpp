@@ -51,7 +51,7 @@ inline int random_int(int lower, int upper)
     return uniform_dist(e1);
 }
 
-void execute_pipeline(std::unique_ptr<pipeline::Pipeline> pipeline, unsigned short cores)
+void execute_pipeline(std::unique_ptr<pipeline::Pipeline> pipeline, unsigned short cores, bool use_threads=false)
 {
     CHECK(cores > 0);
     std::stringstream cpu_set;
@@ -59,6 +59,12 @@ void execute_pipeline(std::unique_ptr<pipeline::Pipeline> pipeline, unsigned sho
 
     auto options = std::make_unique<Options>();
     options->topology().user_cpuset(cpu_set.str());
+
+    if (use_threads) {
+        VLOG(1) << "Using threads";
+        options->engine_factories().set_default_engine_type(srf::runnable::EngineType::Thread);
+    }
+
     Executor exec(std::move(options));
     exec.register_pipeline(std::move(pipeline));
     exec.start();
@@ -117,7 +123,7 @@ TEST_F(TestRxcppOps, threaded_flat_map)
                 .take(3);
         },
         [](int v_main, int v_sub) { return std::make_tuple(v_main, v_sub); },
-        rxcpp::observe_on_new_thread());
+        srf::runnable::observe_on_new_srf_thread());
     values.as_blocking().subscribe(
         [](std::tuple<int, long> v) {
             printf("[thread %s] OnNext: %d - %ld\n", get_tid().c_str(), std::get<0>(v), std::get<1>(v));
@@ -177,11 +183,14 @@ TEST_F(TestRxcppOps, concat_map_in_segment)
 TEST_F(TestRxcppOps, flat_map_in_segment)
 {
     std::size_t iterations = 3;
+    std::size_t sink_call_count = 0;
+    std::size_t conpleted_call_count = 0;
 
-    auto init = [&iterations](segment::Builder& segment) {
+    auto init = [&iterations, &sink_call_count, &conpleted_call_count](segment::Builder& segment) {
         auto src = segment.make_source<int>("src", [&iterations](rxcpp::subscriber<int> s) {
             for (auto i = 0; i < iterations; ++i)
             {
+
                 VLOG(10) << "src: " << i << std::endl;
                 s.on_next(i);
             }
@@ -210,8 +219,8 @@ TEST_F(TestRxcppOps, flat_map_in_segment)
 
         auto sink = segment.make_sink<std::string>(
             "sink",
-            [](std::string v) { VLOG(1) << "Sink: " << v << std::endl; },
-            []() { VLOG(10) << "Completed" << std::endl; });
+            [&sink_call_count](std::string v) { VLOG(1) << "Sink: " << v << std::endl; ++sink_call_count;},
+            [&conpleted_call_count]() { VLOG(10) << "Completed" << std::endl; ++conpleted_call_count;});
 
         segment.make_edge(src, internal_1);
         segment.make_edge(internal_1, sink);
@@ -221,13 +230,17 @@ TEST_F(TestRxcppOps, flat_map_in_segment)
     auto pipeline = pipeline::make_pipeline();
     pipeline->register_segment(segdef);
     execute_pipeline(std::move(pipeline), iterations);
+    EXPECT_EQ(sink_call_count, iterations*iterations);
+    EXPECT_EQ(conpleted_call_count, 1);
 }
 
 TEST_F(TestRxcppOps, flat_map_create_in_segment)
 {
     std::size_t iterations = 3;
+    std::size_t sink_call_count = 0;
+    std::size_t conpleted_call_count = 0;
 
-    auto init = [&iterations](segment::Builder& segment) {
+    auto init = [&iterations, &sink_call_count, &conpleted_call_count](segment::Builder& segment) {
         auto src = segment.make_source<int>("src", [&iterations](rxcpp::subscriber<int> s) {
             for (auto i = 0; i < iterations; ++i)
             {
@@ -244,15 +257,23 @@ TEST_F(TestRxcppOps, flat_map_create_in_segment)
                     return rxcpp::observable<>::create<int>([iterations, v](rxcpp::subscriber<int> s) {
                         for (int i = 1; i < iterations + 1; ++i)
                         {
-                            //auto& context = srf::runnable::Context::get_runtime_context();
-                            //bool is_fiber = context.execution_context() == runnable::EngineType::Fiber;
+                            auto& context = srf::runnable::Context::get_runtime_context();
+                            bool is_fiber = context.execution_context() == runnable::EngineType::Fiber;
                             auto ri = random_int(1, 100);
                             auto st = 1ms * ri;
-                            VLOG(1) << "[" << boost::this_fiber::get_id() << "] (" << v
-                                    << ")"  // is_fiber=" << is_fiber
-                                    << " Sleeping for: " << ri << "ms" << std::endl;
-                            boost::this_fiber::sleep_for(st);
-                            VLOG(1) << "[" << boost::this_fiber::get_id() << "] woke: " << v << std::endl;
+                            VLOG(1) << "[" << get_tid() << "] (" << v
+                                    << ") is_fiber=" << is_fiber
+                                    << " Sleeping for: " << ri << "ms" << std::endl << std::flush;
+                            
+                            if (is_fiber)
+                            {
+                                boost::this_fiber::sleep_for(st);
+                            } else 
+                            {
+                                std::this_thread::sleep_for(st);
+                            }
+                            
+                            VLOG(1) << "[" << get_tid() << "] woke: " << v << std::endl << std::flush;
 
                             if (s.is_subscribed())
                             {
@@ -276,8 +297,8 @@ TEST_F(TestRxcppOps, flat_map_create_in_segment)
 
         auto sink = segment.make_sink<std::string>(
             "sink",
-            [](std::string v) { VLOG(1) << "Sink: " << v << std::endl; },
-            []() { VLOG(10) << "Completed" << std::endl; });
+            [&sink_call_count](std::string v) { VLOG(1) << "Sink: " << v << std::endl; ++sink_call_count;},
+            [&conpleted_call_count]() { VLOG(10) << "Completed" << std::endl; ++conpleted_call_count;});
 
         segment.make_edge(src, internal_1);
         segment.make_edge(internal_1, sink);
@@ -286,5 +307,8 @@ TEST_F(TestRxcppOps, flat_map_create_in_segment)
     auto segdef   = segment::Definition::create("segment_stats_test", init);
     auto pipeline = pipeline::make_pipeline();
     pipeline->register_segment(segdef);
-    execute_pipeline(std::move(pipeline), iterations);
+    execute_pipeline(std::move(pipeline), 1, true);
+
+    EXPECT_EQ(sink_call_count, iterations*iterations);
+    EXPECT_EQ(conpleted_call_count, 1);
 }
