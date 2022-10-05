@@ -51,7 +51,7 @@ inline int random_int(int lower, int upper)
     return uniform_dist(e1);
 }
 
-void execute_pipeline(std::unique_ptr<pipeline::Pipeline> pipeline, unsigned short cores, bool use_threads=false)
+void execute_pipeline(std::unique_ptr<pipeline::Pipeline> pipeline, unsigned short cores, bool use_threads = false)
 {
     CHECK(cores > 0);
     std::stringstream cpu_set;
@@ -60,7 +60,8 @@ void execute_pipeline(std::unique_ptr<pipeline::Pipeline> pipeline, unsigned sho
     auto options = std::make_unique<Options>();
     options->topology().user_cpuset(cpu_set.str());
 
-    if (use_threads) {
+    if (use_threads)
+    {
         VLOG(1) << "Using threads";
         options->engine_factories().set_default_engine_type(srf::runnable::EngineType::Thread);
     }
@@ -116,19 +117,30 @@ TEST_F(TestRxcppOps, threaded_concat_map)
 
 TEST_F(TestRxcppOps, threaded_flat_map)
 {
-    auto values = rxcpp::observable<>::range(1, 3).flat_map(
-        [](int v) {
+    std::size_t iterations           = 3;
+    std::size_t sink_call_count      = 0;
+    std::size_t conpleted_call_count = 0;
+    auto values                      = rxcpp::observable<>::range(1, 3).flat_map(
+        [iterations](int v) {
             auto st = 1ms * random_int(1, 100);
             return rxcpp::observable<>::interval(std::chrono::steady_clock::now() + st, std::chrono::milliseconds(50))
-                .take(3);
+                .take(iterations);
         },
         [](int v_main, int v_sub) { return std::make_tuple(v_main, v_sub); },
         srf::runnable::observe_on_new_srf_thread());
+
     values.as_blocking().subscribe(
-        [](std::tuple<int, long> v) {
+        [&sink_call_count](std::tuple<int, long> v) {
             printf("[thread %s] OnNext: %d - %ld\n", get_tid().c_str(), std::get<0>(v), std::get<1>(v));
+            ++sink_call_count;
         },
-        []() { printf("[thread %s] OnCompleted\n", get_tid().c_str()); });
+        [&conpleted_call_count]() {
+            printf("[thread %s] OnCompleted\n", get_tid().c_str());
+            ++conpleted_call_count;
+        });
+
+    EXPECT_EQ(sink_call_count, iterations * iterations);
+    EXPECT_EQ(conpleted_call_count, 1);
 }
 
 TEST_F(TestRxcppOps, concat_map_in_segment)
@@ -158,12 +170,8 @@ TEST_F(TestRxcppOps, concat_map_in_segment)
                                                                       std::stringstream s;
                                                                       s << v1 << " - " << v2;
                                                                       return s.str();
-                                                                  }),
-
-                                                              rxcpp::operators::map([](std::string v) {
-                                                                  VLOG(10) << "Map: " << v << std::endl;
-                                                                  return v;
-                                                              }));
+                                                                  },
+                                                                  srf::runnable::observe_on_new_srf_thread()));
 
         auto sink = segment.make_sink<std::string>(
             "sink",
@@ -182,15 +190,14 @@ TEST_F(TestRxcppOps, concat_map_in_segment)
 
 TEST_F(TestRxcppOps, flat_map_in_segment)
 {
-    std::size_t iterations = 3;
-    std::size_t sink_call_count = 0;
+    std::size_t iterations           = 3;
+    std::size_t sink_call_count      = 0;
     std::size_t conpleted_call_count = 0;
 
     auto init = [&iterations, &sink_call_count, &conpleted_call_count](segment::Builder& segment) {
         auto src = segment.make_source<int>("src", [&iterations](rxcpp::subscriber<int> s) {
             for (auto i = 0; i < iterations; ++i)
             {
-
                 VLOG(10) << "src: " << i << std::endl;
                 s.on_next(i);
             }
@@ -210,17 +217,19 @@ TEST_F(TestRxcppOps, flat_map_in_segment)
                                                                       std::stringstream s;
                                                                       s << v1 << " - " << v2;
                                                                       return s.str();
-                                                                  }),
-
-                                                              rxcpp::operators::map([](std::string v) {
-                                                                  VLOG(10) << "Map: " << v << std::endl;
-                                                                  return v;
-                                                              }));
+                                                                  },
+                                                                  srf::runnable::observe_on_new_srf_thread()));
 
         auto sink = segment.make_sink<std::string>(
             "sink",
-            [&sink_call_count](std::string v) { VLOG(1) << "Sink: " << v << std::endl; ++sink_call_count;},
-            [&conpleted_call_count]() { VLOG(10) << "Completed" << std::endl; ++conpleted_call_count;});
+            [&sink_call_count](std::string v) {
+                VLOG(1) << "Sink: " << v << std::endl;
+                ++sink_call_count;
+            },
+            [&conpleted_call_count]() {
+                VLOG(10) << "Completed" << std::endl;
+                ++conpleted_call_count;
+            });
 
         segment.make_edge(src, internal_1);
         segment.make_edge(internal_1, sink);
@@ -230,14 +239,14 @@ TEST_F(TestRxcppOps, flat_map_in_segment)
     auto pipeline = pipeline::make_pipeline();
     pipeline->register_segment(segdef);
     execute_pipeline(std::move(pipeline), iterations);
-    EXPECT_EQ(sink_call_count, iterations*iterations);
+    EXPECT_EQ(sink_call_count, iterations * iterations);
     EXPECT_EQ(conpleted_call_count, 1);
 }
 
 TEST_F(TestRxcppOps, flat_map_create_in_segment)
 {
-    std::size_t iterations = 3;
-    std::size_t sink_call_count = 0;
+    std::size_t iterations           = 3;
+    std::size_t sink_call_count      = 0;
     std::size_t conpleted_call_count = 0;
 
     auto init = [&iterations, &sink_call_count, &conpleted_call_count](segment::Builder& segment) {
@@ -259,20 +268,21 @@ TEST_F(TestRxcppOps, flat_map_create_in_segment)
                         {
                             auto& context = srf::runnable::Context::get_runtime_context();
                             bool is_fiber = context.execution_context() == runnable::EngineType::Fiber;
-                            auto ri = random_int(1, 100);
-                            auto st = 1ms * ri;
-                            VLOG(1) << "[" << get_tid() << "] (" << v
-                                    << ") is_fiber=" << is_fiber
-                                    << " Sleeping for: " << ri << "ms" << std::endl << std::flush;
-                            
+                            auto ri       = random_int(1, 100);
+                            auto st       = 1ms * ri;
+                            VLOG(1) << "[" << get_tid() << "] (" << v << ") is_fiber=" << is_fiber
+                                    << " Sleeping for: " << ri << "ms" << std::endl
+                                    << std::flush;
+
                             if (is_fiber)
                             {
                                 boost::this_fiber::sleep_for(st);
-                            } else 
+                            }
+                            else
                             {
                                 std::this_thread::sleep_for(st);
                             }
-                            
+
                             VLOG(1) << "[" << get_tid() << "] woke: " << v << std::endl << std::flush;
 
                             if (s.is_subscribed())
@@ -288,17 +298,20 @@ TEST_F(TestRxcppOps, flat_map_create_in_segment)
                     s << v1 << " - " << v2;
                     return s.str();
                 },
-                srf::runnable::observe_on_new_srf_thread()),
+                srf::runnable::observe_on_new_srf_thread())
 
-            rxcpp::operators::map([](std::string v) {
-                VLOG(10) << "Map: " << v << std::endl;
-                return v;
-            }));
+        );
 
         auto sink = segment.make_sink<std::string>(
             "sink",
-            [&sink_call_count](std::string v) { VLOG(1) << "Sink: " << v << std::endl; ++sink_call_count;},
-            [&conpleted_call_count]() { VLOG(10) << "Completed" << std::endl; ++conpleted_call_count;});
+            [&sink_call_count](std::string v) {
+                VLOG(1) << "Sink: " << v << std::endl;
+                ++sink_call_count;
+            },
+            [&conpleted_call_count]() {
+                VLOG(10) << "Completed" << std::endl;
+                ++conpleted_call_count;
+            });
 
         segment.make_edge(src, internal_1);
         segment.make_edge(internal_1, sink);
@@ -309,6 +322,6 @@ TEST_F(TestRxcppOps, flat_map_create_in_segment)
     pipeline->register_segment(segdef);
     execute_pipeline(std::move(pipeline), 1, true);
 
-    EXPECT_EQ(sink_call_count, iterations*iterations);
+    EXPECT_EQ(sink_call_count, iterations * iterations);
     EXPECT_EQ(conpleted_call_count, 1);
 }
