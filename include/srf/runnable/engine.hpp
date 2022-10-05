@@ -48,7 +48,11 @@ class Engine
   public:
     virtual ~Engine() = default;
 
-    virtual EngineType engine_type() const = 0;
+    virtual std::size_t worker_count() const = 0;
+    virtual EngineType engine_type() const   = 0;
+
+    virtual Future<void> run_task(std::function<void()> task)                         = 0;
+    virtual Future<void> run_task(std::size_t worker_idx, std::function<void()> task) = 0;
 
   private:
     virtual Future<void> launch_task(std::function<void()> task) = 0;

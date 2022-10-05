@@ -17,6 +17,8 @@
 
 #include "internal/runnable/fiber_engine.hpp"
 
+#include "internal/runnable/engine.hpp"
+
 #include "srf/core/fiber_meta_data.hpp"
 #include "srf/core/task_queue.hpp"
 #include "srf/runnable/types.hpp"
@@ -29,16 +31,22 @@
 
 namespace srf::internal::runnable {
 
-FiberEngine::FiberEngine(core::FiberTaskQueue& task_queue, int priority) : m_task_queue(task_queue), m_meta{priority} {}
+FiberEngine::FiberEngine(std::vector<std::reference_wrapper<core::FiberTaskQueue>>&& task_queues, int priority) :
+  Engine(task_queues.size()),
+  m_task_queues(std::move(task_queues)),
+  m_meta{priority}
+{}
 
-FiberEngine::FiberEngine(core::FiberTaskQueue& task_queue, const FiberMetaData& meta) :
-  m_task_queue(task_queue),
+FiberEngine::FiberEngine(std::vector<std::reference_wrapper<core::FiberTaskQueue>>&& task_queues,
+                         const FiberMetaData& meta) :
+  Engine(task_queues.size()),
+  m_task_queues(std::move(task_queues)),
   m_meta(meta)
 {}
 
-Future<void> FiberEngine::do_launch_task(std::function<void()> task)
+Future<void> FiberEngine::do_launch_task(std::size_t worker_idx, std::function<void()> task)
 {
-    return m_task_queue.enqueue(m_meta, std::move(task));
+    return m_task_queues[worker_idx].get().enqueue(m_meta, std::move(task));
 }
 
 runnable::EngineType FiberEngine::engine_type() const

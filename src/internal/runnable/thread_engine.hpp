@@ -44,9 +44,9 @@ class ThreadEngine final : public Engine
     std::optional<std::thread::id> get_id() const;
 
   private:
-    Future<void> do_launch_task(std::function<void()> task) final;
+    Future<void> do_launch_task(std::size_t worker_idx, std::function<void()> task) final;
 
-    CpuSet m_cpu_set;
+    RoundRobinCpuSet m_cpu_set;
     const system::Resources& m_system;
     std::unique_ptr<system::Thread> m_thread;
 };

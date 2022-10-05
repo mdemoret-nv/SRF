@@ -240,6 +240,7 @@ add_library(libsrf
   src/public/options/services.cpp
   src/public/options/topology.cpp
   src/public/runnable/context.cpp
+  src/public/runnable/launch_options.cpp
   src/public/runnable/launcher.cpp
   src/public/runnable/runnable.cpp
   src/public/runnable/runner.cpp

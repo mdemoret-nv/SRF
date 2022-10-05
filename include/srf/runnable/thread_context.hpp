@@ -109,6 +109,11 @@ class ThreadContext final : public ContextT
         std::this_thread::yield();
     }
 
+    void do_sleep_until(const std::chrono::steady_clock::time_point& sleep_time) final
+    {
+        std::this_thread::sleep_until(sleep_time);
+    }
+
     EngineType do_execution_context() const final
     {
         return EngineType::Thread;

@@ -27,6 +27,7 @@
 #include <exception>
 #include <sstream>
 #include <string>
+#include <thread>
 #include <utility>
 
 namespace srf::runnable {
@@ -94,11 +95,14 @@ void Context::yield()
     do_yield();
 }
 
-void Context::init(const Runner& runner)
+void Context::init(std::shared_ptr<Engine> engine, const Runner& runner)
 {
     auto& fiber_local = FiberLocalContext::get();
     fiber_local.reset(new FiberLocalContext());
     fiber_local->m_context = this;
+
+    // Set the engine to allow spawning new tasks
+    m_engine = engine;
 
     std::stringstream ss;
     this->init_info(ss);
@@ -113,6 +117,9 @@ void Context::finish()
     {
         std::rethrow_exception(m_exception_ptr);
     }
+
+    // Release the engine to prevent using it outside of the correct window
+    m_engine = nullptr;
 }
 
 void Context::set_exception(std::exception_ptr exception_ptr)
@@ -149,6 +156,11 @@ void Context::init_info(std::stringstream& ss)
 const std::string& Context::info() const
 {
     return m_info;
+}
+
+std::shared_ptr<Engine> Context::engine() const
+{
+    return m_engine;
 }
 
 bool Context::status() const

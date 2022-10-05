@@ -75,10 +75,19 @@ void FiberEngines::initialize_launchers()
     // CHECK_EQ(launch_options().pe_count(), m_task_queues.size())
     //     << "mismatched fiber pool task queue size with respect to pe_count";
 
+    size_t current_queue_idx = 0;
+
     // Loop over the total number of PE and create one launcher for each
     for (int j = 0; j < launch_options().pe_count(); ++j)
     {
-        Engines::add_launcher(std::make_shared<FiberEngine>(m_task_queues[j % m_task_queues.size()], m_meta));
+        std::vector<std::reference_wrapper<core::FiberTaskQueue>> queues;
+
+        for (int i = 0; i < launch_options().worker_per_pe(); ++i)
+        {
+            queues.push_back(m_task_queues[current_queue_idx++ % m_task_queues.size()]);
+        }
+
+        Engines::add_launcher(std::make_shared<FiberEngine>(std::move(queues), m_meta));
     }
 }
 

@@ -31,84 +31,35 @@ namespace srf::runnable {
 
 struct LaunchOptions
 {
-    LaunchOptions() = default;
-    LaunchOptions(std::string name, std::size_t num_pe = 1, std::size_t num_workers = 0) :
-      m_engine_factory_name(std::move(name))
-    {
-        this->set_counts(num_pe, num_workers);
-    }
+    LaunchOptions();
 
-    void set_counts(std::size_t num_pe, std::size_t num_workers = 0)
-    {
-        if (num_workers == 0)
-        {
-            // Default to 1 worker per PE if not specified
-            num_workers = num_pe;
-        }
+    LaunchOptions(std::string name, std::size_t num_pe = 1, std::size_t num_workers = 0);
 
-        if (num_pe > num_workers)
-        {
-            CHECK_EQ(num_pe % num_workers, 0) << "If num_pe > num_workers, num_pe must be divisible by num_workers";
+    void set_counts(std::size_t num_pe, std::size_t num_workers = 0);
 
-            this->m_pe_per_worker = num_pe / num_workers;
-            this->m_worker_per_pe = 1;
-        }
-        else
-        {
-            CHECK_EQ(num_workers % num_pe, 0) << "If num_pe < num_workers, num_workers must be divisible by num_pe";
+    std::size_t pe_count() const;
 
-            this->m_pe_per_worker = 1;
-            this->m_worker_per_pe = num_workers / num_pe;
-        }
+    std::size_t pe_per_worker() const;
 
-        this->m_pe_count     = num_pe;
-        this->m_worker_count = num_workers;
-    }
-
-    std::size_t pe_count() const
-    {
-        return this->m_pe_count;
-    }
-
-    std::size_t pe_per_worker() const
-    {
-        return this->m_pe_per_worker;
-    }
-
-    std::size_t worker_per_pe() const
-    {
-        return this->m_worker_per_pe;
-    }
+    std::size_t worker_per_pe() const;
 
     // Deprecated property. Use pe_per_worker().
-    std::size_t engines_per_pe() const
-    {
-        return this->m_pe_per_worker;
-    }
+    std::size_t engines_per_pe() const;
 
-    std::size_t worker_count() const
-    {
-        return this->m_worker_count;
-    }
+    std::size_t worker_count() const;
 
-    void set_engine_factory_name(const std::string& engine_factory_name)
-    {
-        this->m_engine_factory_name = engine_factory_name;
-    }
+    void set_engine_factory_name(const std::string& engine_factory_name);
 
-    const std::string& engine_factory_name() const
-    {
-        return this->m_engine_factory_name;
-    }
+    const std::string& engine_factory_name() const;
 
   protected:
-    std::size_t m_pe_count{1};
     std::string m_engine_factory_name{default_engine_factory_name()};
+    std::size_t m_pe_count{1};
     std::size_t m_worker_count{1};
 
     // Derived values
-    std::size_t m_pe_per_worker{0};
-    std::size_t m_worker_per_pe{0};
+    std::size_t m_pe_per_worker{1};
+    std::size_t m_worker_per_pe{1};
 };
 
 struct ServiceLaunchOptions : public LaunchOptions

@@ -108,6 +108,11 @@ class FiberContext final : public ContextT
         boost::this_fiber::yield();
     }
 
+    void do_sleep_until(const std::chrono::steady_clock::time_point& sleep_time) final
+    {
+        boost::this_fiber::sleep_until(sleep_time);
+    }
+
     EngineType do_execution_context() const final
     {
         return EngineType::Fiber;

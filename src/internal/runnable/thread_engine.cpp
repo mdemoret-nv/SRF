@@ -33,6 +33,7 @@
 namespace srf::internal::runnable {
 
 ThreadEngine::ThreadEngine(CpuSet cpu_set, const system::Resources& system) :
+  Engine(cpu_set.weight()),
   m_cpu_set(std::move(cpu_set)),
   m_system(system)
 {}
@@ -48,11 +49,14 @@ std::optional<std::thread::id> ThreadEngine::get_id() const
     return std::nullopt;
 }
 
-Future<void> ThreadEngine::do_launch_task(std::function<void()> task)
+Future<void> ThreadEngine::do_launch_task(std::size_t worker_idx, std::function<void()> task)
 {
+    auto final_cpu_set = m_cpu_set.next_binding();
+
     boost::fibers::packaged_task<void()> pkg_task(std::move(task));
     auto future = pkg_task.get_future();
-    m_thread = std::make_unique<system::Thread>(m_system.make_thread("thread_engine", m_cpu_set, std::move(pkg_task)));
+    m_thread =
+        std::make_unique<system::Thread>(m_system.make_thread("thread_engine", final_cpu_set, std::move(pkg_task)));
     return std::move(future);
 }
 

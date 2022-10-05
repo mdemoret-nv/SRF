@@ -84,15 +84,16 @@ class TestRunnable : public ::testing::Test
                 options.topology().user_cpuset("0-3");
                 options.topology().restrict_gpus(true);
                 options.engine_factories().set_default_engine_type(this->get_defaul_engine_type());
-                // options.engine_factories().set_engine_factory_options("thread_pool", [](EngineFactoryOptions&
-                // options) {
-                //     options.engine_type   = runnable::EngineType::Thread;
-                //     options.allow_overlap = true;
-                //     options.cpu_count     = 2;
-                // });
+
+                this->configure_engines(options.engine_factories());
             })));
 
         m_resources = std::make_unique<internal::runnable::Resources>(*m_system_resources, 0);
+    }
+
+    virtual void configure_engines(srf::EngineGroups& engine_groups)
+    {
+        // Nothing in base
     }
 
     void TearDown() override
@@ -103,6 +104,19 @@ class TestRunnable : public ::testing::Test
 
     std::unique_ptr<internal::system::Resources> m_system_resources;
     std::unique_ptr<internal::runnable::Resources> m_resources;
+};
+
+class TestRunnableThreadPool : public TestRunnable
+{
+  protected:
+    void configure_engines(srf::EngineGroups& engine_groups) override
+    {
+        engine_groups.set_engine_factory_options("thread_pool", [](EngineFactoryOptions& options) {
+            options.engine_type   = runnable::EngineType::Thread;
+            options.allow_overlap = true;
+            options.cpu_count     = 2;
+        });
+    }
 };
 
 class TestGenericRunnable final : public runnable::RunnableWithContext<>
@@ -237,7 +251,7 @@ TEST_F(TestRunnable, GenericRunnableRunWithLaunchControl)
     runner->await_join();
 }
 
-TEST_F(TestRunnable, GenericRunnableRunWithThread)
+TEST_F(TestRunnableThreadPool, GenericRunnableRunWithThread)
 {
     runnable::LaunchOptions thread_pool;
     thread_pool.set_engine_factory_name("thread_pool");
@@ -267,7 +281,7 @@ TEST_F(TestRunnable, FiberRunnable)
     runner->await_join();
 }
 
-TEST_F(TestRunnable, FiberRunnableMisMatch)
+TEST_F(TestRunnableThreadPool, FiberRunnableMisMatch)
 {
     runnable::LaunchOptions factory;
     factory.set_engine_factory_name("thread_pool");

@@ -21,6 +21,8 @@
 #include "srf/runnable/types.hpp"
 #include "srf/types.hpp"
 
+#include <atomic>
+#include <cstddef>
 #include <functional>
 #include <mutex>
 
@@ -30,11 +32,23 @@ using ::srf::runnable::EngineType;
 
 class Engine : public ::srf::runnable::Engine
 {
+  public:
+    std::size_t worker_count() const override;
+
+    Future<void> run_task(std::function<void()> task) override;
+    Future<void> run_task(std::size_t worker_idx, std::function<void()> task) override;
+
+  protected:
+    Engine(std::size_t worker_count);
+
+  private:
     Future<void> launch_task(std::function<void()> task) final;
 
-    virtual Future<void> do_launch_task(std::function<void()> task) = 0;
+    virtual Future<void> do_launch_task(std::size_t worker_idx, std::function<void()> task) = 0;
 
     bool m_launched{false};
+    std::size_t m_worker_count{0};
+    std::atomic_size_t m_current_worker_idx{0};
     std::mutex m_mutex;
 };
 
