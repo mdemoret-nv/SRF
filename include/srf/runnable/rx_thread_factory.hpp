@@ -1,3 +1,5 @@
+#pragma once
+
 #include <rxcpp/operators/rx-observe_on.hpp>
 
 #include <functional>
