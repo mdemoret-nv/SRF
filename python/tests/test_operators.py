@@ -26,7 +26,7 @@ from srf.core import operators as ops
 @pytest.fixture
 def ex_runner():
 
-    def run_exec(segment_init, num_threads=1):
+    def run_exec(segment_init, num_threads=1, use_fibers=True):
         pipeline = srf.Pipeline()
 
         pipeline.make_segment("my_seg", segment_init)
@@ -35,6 +35,11 @@ def ex_runner():
 
         # Set to 1 thread
         options.topology.user_cpuset = f"0-{num_threads-1}"
+
+        if use_fibers:
+            options.engine_factories.default_engine_type = srf.core.options.EngineType.Fiber
+        else:
+            options.engine_factories.default_engine_type = srf.core.options.EngineType.Thread
 
         executor = srf.Executor(options)
 
@@ -50,7 +55,7 @@ def ex_runner():
 @pytest.fixture
 def run_segment(ex_runner):
 
-    def run(input_data, node_fn, num_threads=1):
+    def run(input_data, node_fn, num_threads=1, use_fibers=True):
 
         actual = []
         raised_error = None
@@ -61,8 +66,6 @@ def run_segment(ex_runner):
 
             node = seg.make_node_full("test", node_fn)
             seg.make_edge(source, node)
-
-            node.launch_options.set_counts(num_threads)
 
             def sink_on_next(x):
                 actual.append(x)
@@ -78,7 +81,7 @@ def run_segment(ex_runner):
             sink = seg.make_sink("sink", sink_on_next, sink_on_error, sink_on_completed)
             seg.make_edge(node, sink)
 
-        ex_runner(segment_fn, num_threads=num_threads)
+        ex_runner(segment_fn, num_threads=num_threads, use_fibers=use_fibers)
 
         assert did_complete, "Sink on_completed was not called"
 
@@ -136,7 +139,7 @@ def test_flat_map(run_segment):
 
         input.pipe(ops.flat_map(flat_map_fn)).subscribe(output)
 
-    actual, raised_error = run_segment(input_data, node_fn)
+    actual, raised_error = run_segment(input_data, node_fn, use_fibers=False)
 
     assert actual == expected
 

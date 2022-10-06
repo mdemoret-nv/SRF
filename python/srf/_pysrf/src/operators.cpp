@@ -21,6 +21,8 @@
 #include "pysrf/types.hpp"
 #include "pysrf/utils.hpp"
 
+#include "srf/runnable/rx_thread_factory.hpp"
+
 #include <boost/fiber/operations.hpp>
 #include <pybind11/cast.h>
 #include <pybind11/functional.h>  // IWYU pragma: keep
@@ -423,28 +425,32 @@ PythonOperator OperatorsProxy::to_list()
 PythonOperator OperatorsProxy::flat_map(std::function<PyObjectObservable(pybind11::object x)> flat_map_fn)
 {
     return PythonOperator("flat_map", [flat_map_fn](PyObjectObservable source) {
-        return source.flat_map([flat_map_fn](PyHolder data_object) {
-            AcquireGIL gil;
+        return source.flat_map(
+            [flat_map_fn](PyHolder data_object) {
+                AcquireGIL gil;
 
-            // Call the map function
-            auto returned = flat_map_fn(std::move(data_object));
+                // Call the map function
+                auto returned = flat_map_fn(std::move(data_object));
 
-            return returned;
-        });
+                return returned;
+            },
+            srf::runnable::observe_on_new_srf_thread());
     });
 }
 
 PythonOperator OperatorsProxy::concat_map(std::function<PyObjectObservable(pybind11::object x)> concat_map_fn)
 {
     return PythonOperator("concat_map", [concat_map_fn](PyObjectObservable source) {
-        return source.concat_map([concat_map_fn](PyHolder data_object) {
-            AcquireGIL gil;
+        return source.concat_map(
+            [concat_map_fn](PyHolder data_object) {
+                AcquireGIL gil;
 
-            // Call the map function
-            auto returned = concat_map_fn(std::move(data_object));
+                // Call the map function
+                auto returned = concat_map_fn(std::move(data_object));
 
-            return returned;
-        });
+                return returned;
+            },
+            srf::runnable::observe_on_new_srf_thread());
     });
 }
 

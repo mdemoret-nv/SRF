@@ -174,6 +174,7 @@ add_library(libsrf
   src/internal/runnable/fiber_engine.cpp
   src/internal/runnable/fiber_engines.cpp
   src/internal/runnable/resources.cpp
+  src/internal/runnable/rx_thread_factory.cpp
   src/internal/runnable/thread_engine.cpp
   src/internal/runnable/thread_engines.cpp
   src/internal/segment/builder.cpp
