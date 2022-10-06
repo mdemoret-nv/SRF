@@ -68,7 +68,7 @@ class Context
     static Context& get_runtime_context();
 
     void set_exception(std::exception_ptr exception_ptr);
-    void init_tmp(); // TODO: figure out something better
+    void init_on_current_thread();
 
   protected:
     void init(const Runner& runner);
