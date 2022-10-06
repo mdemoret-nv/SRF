@@ -31,7 +31,7 @@ namespace srf::pysrf {
 class ObservableProxy
 {
   public:
-    static PyObjectObservable create(pybind11::function generator_fn);
+    static PyObjectObservable create(pybind11::function generator_fn, bool observe_on_new_thread = false);
     static PyObjectObservable iterate(pybind11::iterable source_iter);
 
     static PySubscription subscribe(PyObjectObservable* self, PyObjectObserver& observer);

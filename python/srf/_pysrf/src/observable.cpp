@@ -20,6 +20,8 @@
 #include "pysrf/operators.hpp"
 #include "pysrf/types.hpp"
 
+#include "srf/runnable/rx_thread_factory.hpp"
+
 #include <glog/logging.h>
 #include <pybind11/cast.h>
 #include <pybind11/eval.h>
@@ -122,12 +124,20 @@ PyObjectObservable ObservableProxy::iterate(pybind11::iterable source_iterable)
         }));
 }
 
-PyObjectObservable ObservableProxy::create(pybind11::function generator_fn)
+PyObjectObservable ObservableProxy::create(pybind11::function generator_fn, bool observe_on_new_thread)
 {
-    return rxcpp::observable<>::create<PyHolder>(source_iterate([gen_fn = PyObjectHolder(std::move(generator_fn))]() {
-        // Turn the generator function into an iterator
-        return py::iter(gen_fn());
-    }));
+    auto obs =
+        rxcpp::observable<>::create<PyHolder>(source_iterate([gen_fn = PyObjectHolder(std::move(generator_fn))]() {
+            // Turn the generator function into an iterator
+            return py::iter(gen_fn());
+        }));
+
+    if (observe_on_new_thread)
+    {
+        return obs.subscribe_on(srf::runnable::observe_on_new_srf_thread()).as_dynamic();
+    }
+
+    return obs;
 }
 
 PySubscription ObservableProxy::subscribe(PyObjectObservable* self, PyObjectObserver& observer)
