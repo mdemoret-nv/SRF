@@ -53,6 +53,7 @@
 #include <thread>
 #include <type_traits>
 #include <utility>
+#include <vector>
 
 using namespace srf;
 
@@ -360,27 +361,21 @@ class LaunchOptionsSuite
         return std::get<2>(GetParam());
     }
 
+    std::size_t pe_per_worker() const
+    {
+        return std::max(this->pe_count() / this->worker_count(), 1UL);
+    }
+
   protected:
     // Override the engine type based on the parameter
     runnable::EngineType get_defaul_engine_type() const override
     {
         return this->engine_type();
     }
-};
 
-TEST_P(LaunchOptionsSuite, EngineFactoriesType)
-{
-    runnable::LaunchOptions factory;
-    factory.set_engine_factory_name("default");
-    factory.set_counts(this->pe_count(), this->worker_count());
-
-    std::mutex mutex;
-    std::set<std::size_t> unique_thread_ids;
-    std::map<std::size_t, std::size_t> thread_id_counts;
-    std::map<std::uint32_t, std::set<std::size_t>> cpuid_thread_counts;
-
-    auto add_thread_id = [&](runnable::Context& ctx) {
-        std::lock_guard<decltype(mutex)> lock(mutex);
+    void track_thread_id()
+    {
+        std::lock_guard<decltype(m_mutex)> lock(m_mutex);
 
         auto id = std::hash<std::thread::id>()(std::this_thread::get_id());
 
@@ -401,34 +396,42 @@ TEST_P(LaunchOptionsSuite, EngineFactoriesType)
 
         for (auto cpu_id : cpu_ids)
         {
-            cpuid_thread_counts[cpu_id].insert(id);
+            m_cpuid_thread_ids[cpu_id].insert(id);
+            m_cpuid_thread_counts[cpu_id]++;
         }
 
         hwloc_bitmap_free(cpu_set);
         hwloc_topology_destroy(topology);
 
-        unique_thread_ids.insert(id);
+        m_unique_thread_ids.insert(id);
+    }
 
-        auto found = thread_id_counts.find(id);
+    std::mutex m_mutex;
+    std::set<std::size_t> m_unique_thread_ids;
+    std::map<std::uint32_t, std::set<std::size_t>> m_cpuid_thread_ids;
+    std::map<std::uint32_t, std::size_t> m_cpuid_thread_counts;
+};
 
-        if (found == thread_id_counts.end())
-        {
-            thread_id_counts[id] = 0;
-        }
+TEST_P(LaunchOptionsSuite, CheckEngineThreads)
+{
+    auto worker_count = this->worker_count();
 
-        thread_id_counts[id]++;
-    };
+    runnable::LaunchOptions factory;
+    factory.set_engine_factory_name("default");
+    factory.set_counts(this->pe_count(), worker_count);
+
+    auto runnable_body = [this](runnable::Context& ctx) { this->track_thread_id(); };
 
     std::unique_ptr<srf::runnable::Runner> runner = nullptr;
 
     if (this->engine_type() == runnable::EngineType::Fiber)
     {
-        auto runnable = std::make_unique<TestLambdaRunnable<runnable::FiberContext<>>>(add_thread_id);
+        auto runnable = std::make_unique<TestLambdaRunnable<runnable::FiberContext<>>>(runnable_body);
         runner        = m_resources->launch_control().prepare_launcher(factory, std::move(runnable))->ignition();
     }
     else
     {
-        auto runnable = std::make_unique<TestLambdaRunnable<runnable::ThreadContext<>>>(add_thread_id);
+        auto runnable = std::make_unique<TestLambdaRunnable<runnable::ThreadContext<>>>(runnable_body);
         runner        = m_resources->launch_control().prepare_launcher(factory, std::move(runnable))->ignition();
     }
 
@@ -437,9 +440,9 @@ TEST_P(LaunchOptionsSuite, EngineFactoriesType)
 
     // Make sure that we have the right thread count. Will be either the number of PE count (if PE < Workers) or the
     // Worker count (if PE > Workers)
-    EXPECT_EQ(cpuid_thread_counts.size(), std::min(this->worker_count(), this->pe_count()));
+    EXPECT_EQ(m_cpuid_thread_ids.size(), std::min(this->worker_count(), this->pe_count()));
 
-    std::size_t threads_per_cpuid = std::max(this->pe_count() / this->worker_count(), 1UL);
+    std::size_t threads_per_cpuid = this->pe_per_worker();
 
     // If we are using fibers, there will only ever be 1 thread per core
     if (this->engine_type() == runnable::EngineType::Fiber)
@@ -448,9 +451,81 @@ TEST_P(LaunchOptionsSuite, EngineFactoriesType)
     }
 
     // Check for the right number of PE per thread
-    for (auto const& pair : cpuid_thread_counts)
+    for (auto const& pair : m_cpuid_thread_ids)
     {
         EXPECT_EQ(pair.second.size(), threads_per_cpuid);
+    }
+
+    // Check for the right number of calls per core
+    for (auto const& pair : m_cpuid_thread_counts)
+    {
+        EXPECT_EQ(pair.second, this->pe_per_worker());
+    }
+}
+
+TEST_P(LaunchOptionsSuite, CheckEngineTaskThreads)
+{
+    auto worker_count = this->worker_count();
+
+    runnable::LaunchOptions factory;
+    factory.set_engine_factory_name("default");
+    factory.set_counts(this->pe_count(), worker_count);
+
+    auto runnable_body = [=](runnable::Context& ctx) {
+        std::vector<Future<void>> futures;
+
+        // Launch some additional tasks
+        for (size_t i = 0; i < worker_count; ++i)
+        {
+            futures.push_back(ctx.engine()->run_task([this]() {
+                // Track this thread
+                this->track_thread_id();
+            }));
+        }
+
+        for (auto& f : futures)
+        {
+            f.wait();
+        }
+    };
+
+    std::unique_ptr<srf::runnable::Runner> runner = nullptr;
+
+    if (this->engine_type() == runnable::EngineType::Fiber)
+    {
+        auto runnable = std::make_unique<TestLambdaRunnable<runnable::FiberContext<>>>(runnable_body);
+        runner        = m_resources->launch_control().prepare_launcher(factory, std::move(runnable))->ignition();
+    }
+    else
+    {
+        auto runnable = std::make_unique<TestLambdaRunnable<runnable::ThreadContext<>>>(runnable_body);
+        runner        = m_resources->launch_control().prepare_launcher(factory, std::move(runnable))->ignition();
+    }
+
+    runner->await_live();
+    runner->await_join();
+
+    // Make sure that we have the right thread count. Will be the worker count
+    EXPECT_EQ(m_cpuid_thread_ids.size(), this->worker_count());
+
+    std::size_t threads_per_cpuid = this->pe_count();
+
+    // If we are using fibers, there will only ever be 1 thread per core
+    if (this->engine_type() == runnable::EngineType::Fiber)
+    {
+        threads_per_cpuid = 1;
+    }
+
+    // Check for the right number of PE per thread
+    for (auto const& pair : m_cpuid_thread_ids)
+    {
+        EXPECT_EQ(pair.second.size(), threads_per_cpuid);
+    }
+
+    // Check for the right number of calls per core
+    for (auto const& pair : m_cpuid_thread_counts)
+    {
+        EXPECT_EQ(pair.second, this->pe_count());
     }
 }
 

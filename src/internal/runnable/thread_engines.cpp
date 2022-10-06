@@ -42,17 +42,15 @@ void ThreadEngines::initialize_launchers()
     // Loop over the total number of PE and create one launcher for each
     for (int j = 0; j < launch_options().pe_count(); ++j)
     {
-        add_launcher(std::make_shared<ThreadEngine>(m_cpu_set.next_binding(), m_system));
-    }
+        CpuSet launcher_set;
 
-    // m_cpu_set.for_each_bit([this](std::uint32_t idx, std::uint32_t cpu_id) {
-    //     CpuSet cpu;
-    //     cpu.only(cpu_id);
-    //     for (int i = 0; i < launch_options().engines_per_pe(); ++i)
-    //     {
-    //         add_launcher(std::make_shared<ThreadEngine>(cpu, m_system));
-    //     }
-    // });
+        for (int i = 0; i < launch_options().worker_per_pe(); ++i)
+        {
+            launcher_set.on(m_cpu_set.next_id());
+        }
+
+        add_launcher(std::make_shared<ThreadEngine>(launcher_set, m_system));
+    }
 }
 
 ThreadEngines::ThreadEngines(CpuSet cpu_set, const system::Resources& system) :

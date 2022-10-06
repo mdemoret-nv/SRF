@@ -55,8 +55,21 @@ Future<void> ThreadEngine::do_launch_task(std::size_t worker_idx, std::function<
 
     boost::fibers::packaged_task<void()> pkg_task(std::move(task));
     auto future = pkg_task.get_future();
-    m_thread =
+
+    auto thread =
         std::make_unique<system::Thread>(m_system.make_thread("thread_engine", final_cpu_set, std::move(pkg_task)));
+
+    if (!m_thread)
+    {
+        // Only on the first call do we save the thread
+        m_thread = std::move(thread);
+    }
+    else
+    {
+        // Otherwise detach to prevent immediate cleanup
+        thread->detach();
+    }
+
     return std::move(future);
 }
 

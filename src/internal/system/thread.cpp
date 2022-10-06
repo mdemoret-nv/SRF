@@ -34,10 +34,7 @@
 
 namespace srf::internal::system {
 
-Thread::Thread(std::shared_ptr<const ThreadResources> resources, std::thread&& thread) :
-  m_resources(std::move(resources)),
-  m_thread(std::move(thread))
-{}
+Thread::Thread(std::thread&& thread) : m_thread(std::move(thread)) {}
 
 Thread::~Thread()
 {
@@ -45,7 +42,6 @@ Thread::~Thread()
     {
         DVLOG(10) << "[system::Thread]: joining tid=" << m_thread.get_id();
         m_thread.join();
-        m_resources.reset();
     }
 }
 
@@ -57,6 +53,11 @@ const std::thread& Thread::thread() const
 void Thread::join()
 {
     m_thread.join();
+}
+
+void Thread::detach()
+{
+    m_thread.detach();
 }
 
 void ThreadResources::register_initializer(const CpuSet& cpu_set, std::function<void()> initializer)

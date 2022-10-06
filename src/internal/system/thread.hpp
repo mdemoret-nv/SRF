@@ -48,16 +48,18 @@ class Thread
 {
   public:
     ~Thread();
-    const std::thread& thread() const;
 
-    Thread(Thread&&) noexcept = default;
+    Thread(Thread&&) noexcept            = default;
     Thread& operator=(Thread&&) noexcept = default;
 
+    const std::thread& thread() const;
+
     void join();
+    void detach();
 
   private:
-    Thread(std::shared_ptr<const ThreadResources> resources, std::thread&& thread);
-    std::shared_ptr<const ThreadResources> m_resources;
+    Thread(std::thread&& thread);
+
     std::thread m_thread;  // use std::jthread in c++20; require std::stop_token in task signature
 
     friend ThreadResources;
@@ -94,16 +96,20 @@ Thread ThreadResources::make_thread(std::string desc, CpuSet cpu_affinity, Calla
 {
     CHECK(cpu_affinity.weight());
     CHECK(system().topology().contains(cpu_affinity));
-    auto thread = std::thread([this, desc, cpu_affinity, thread_task = std::move(callable)]() mutable {
+
+    // Have the lambda hold a reference to this to keep the resources alive
+    auto shared_this = shared_from_this();
+
+    auto thread = std::thread([shared_this, desc, cpu_affinity, thread_task = std::move(callable)]() mutable {
         DVLOG(10) << "tid: " << std::this_thread::get_id() << "; initializing thread";
-        initialize_thread(desc, cpu_affinity);
+        shared_this->initialize_thread(desc, cpu_affinity);
         DVLOG(10) << "tid: " << std::this_thread::get_id() << "; execute thread task";
         thread_task();
         DVLOG(10) << "tid: " << std::this_thread::get_id() << "; finalize thread";
-        finalize_thread(cpu_affinity);
+        shared_this->finalize_thread(cpu_affinity);
         DVLOG(10) << "tid: " << std::this_thread::get_id() << "; completed thread";
     });
-    return Thread(shared_from_this(), std::move(thread));
+    return Thread(std::move(thread));
 }
 
 }  // namespace srf::internal::system
