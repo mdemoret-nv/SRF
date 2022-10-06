@@ -120,7 +120,7 @@ void RxNode<InputT, OutputT, ContextT>::do_subscribe(rxcpp::composite_subscripti
     observable_out = this->apply_epilogue_taps(observable_out);
 
     // Subscribe to the observer
-    observable_out.subscribe(subscription, RxSourceBase<OutputT>::observer());
+    observable_out.as_blocking().subscribe(subscription, RxSourceBase<OutputT>::observer());
 }
 
 template <typename InputT, typename OutputT, typename ContextT>
