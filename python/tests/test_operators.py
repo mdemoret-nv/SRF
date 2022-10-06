@@ -139,7 +139,7 @@ def test_flat_map(run_segment):
 
         input.pipe(ops.flat_map(flat_map_fn)).subscribe(output)
 
-    actual, raised_error = run_segment(input_data, node_fn, use_fibers=False)
+    actual, raised_error = run_segment(input_data, node_fn, num_threads=len(input_data), use_fibers=False)
 
     assert actual == expected
 
@@ -155,18 +155,20 @@ def test_create_flat_map(run_segment):
 
         def py_fn(x):
             def inner():
-                time.sleep(0.001 * random.randrange(1, 100))
-                yield (x, 1)
-                time.sleep(0.001 * random.randrange(1, 100))
-                yield (x, 2)
-                time.sleep(0.001 * random.randrange(1, 100))
-                yield (x, 3)
+                for i in range(1, 4):
+                    st = random.randrange(1, 100)
+                    time.sleep(0.001 * st)
+                    yield (x, i)
 
-            return srf.Observable.create(inner)
+            return srf.Observable.create(inner, True)
 
         input.pipe(ops.flat_map(py_fn)).subscribe(output)
 
-    actual, raised_error = run_segment(input_data, node_fn, num_threads=len(input_data))
+    actual, raised_error = run_segment(input_data, node_fn, num_threads=len(input_data), use_fibers=False)
+
+    assert raised_error is None
+
+    print(actual)
 
     # flatmap data is likely out-of-order
     assert sorted(actual) == expected
@@ -184,18 +186,16 @@ def test_create_concat_map(run_segment):
 
         def py_fn(x):
             def inner():
-                time.sleep(0.001 * random.randrange(1, 100))
-                yield (x, 1)
-                time.sleep(0.001 * random.randrange(1, 100))
-                yield (x, 2)
-                time.sleep(0.001 * random.randrange(1, 100))
-                yield (x, 3)
+                for i in range(1, 4):
+                    st = random.randrange(1, 100)
+                    time.sleep(0.001 * st)
+                    yield (x, i)
 
-            return srf.Observable.create(inner)
+            return srf.Observable.create(inner, True)
 
         input.pipe(ops.concat_map(py_fn)).subscribe(output)
 
-    actual, raised_error = run_segment(input_data, node_fn, num_threads=len(input_data))
+    actual, raised_error = run_segment(input_data, node_fn, num_threads=len(input_data), use_fibers=False)
 
     assert actual == expected
 

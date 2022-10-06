@@ -143,6 +143,54 @@ TEST_F(TestRxcppOps, threaded_flat_map)
     EXPECT_EQ(conpleted_call_count, 1);
 }
 
+TEST_F(TestRxcppOps, threaded_flat_map2)
+{
+    std::size_t iterations           = 3;
+    std::size_t sink_call_count      = 0;
+    std::size_t conpleted_call_count = 0;
+    auto scheduler                   = rxcpp::observe_on_new_thread();
+    auto source                      = rxcpp::observable<>::range(1, 3);
+    auto values                      = source.flat_map(
+        [iterations, &scheduler](int v) {
+            return rxcpp::observable<>::create<int>([iterations, v](rxcpp::subscriber<int> s) {
+                       for (int i = 1; i < iterations + 1; ++i)
+                       {
+                           auto ri = random_int(1, 100);
+                           auto st = 1ms * ri;
+                           VLOG(1) << "[" << get_tid() << "] (" << v << ")  Sleeping for: " << ri << "ms" << std::endl
+                                   << std::flush;
+
+                           std::this_thread::sleep_for(st);
+
+                           VLOG(1) << "[" << get_tid() << "] woke: " << v << std::endl << std::flush;
+
+                           if (s.is_subscribed())
+                           {
+                               s.on_next(i);
+                           }
+                       }
+                       s.on_completed();
+                   })
+                .subscribe_on(scheduler)
+                .as_dynamic();
+        },
+        [](int v_main, int v_sub) { return std::make_tuple(v_main, v_sub); },
+        scheduler);
+
+    values.as_blocking().subscribe(
+        [&sink_call_count](std::tuple<int, long> v) {
+            printf("[thread %s] OnNext: %d - %ld\n", get_tid().c_str(), std::get<0>(v), std::get<1>(v));
+            ++sink_call_count;
+        },
+        [&conpleted_call_count]() {
+            printf("[thread %s] OnCompleted\n", get_tid().c_str());
+            ++conpleted_call_count;
+        });
+
+    EXPECT_EQ(sink_call_count, iterations * iterations);
+    EXPECT_EQ(conpleted_call_count, 1);
+}
+
 TEST_F(TestRxcppOps, concat_map_in_segment)
 {
     std::size_t iterations = 3;
