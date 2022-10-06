@@ -94,7 +94,7 @@ void Context::yield()
     do_yield();
 }
 
-void Context::init(const Runner& runner)
+void Context::init_on_current_thread()
 {
     auto& fiber_local = FiberLocalContext::get();
     fiber_local.reset(new FiberLocalContext());
@@ -103,7 +103,11 @@ void Context::init(const Runner& runner)
     std::stringstream ss;
     this->init_info(ss);
     m_info = ss.str();
+}
 
+void Context::init(const Runner& runner)
+{
+    init_on_current_thread();
     m_runner = &runner;
 }
 
@@ -128,7 +132,10 @@ void Context::set_exception(std::exception_ptr exception_ptr)
         if (m_exception_ptr == nullptr)
         {
             m_exception_ptr = std::move(std::current_exception());
-            m_runner->kill();
+            if (m_runner != nullptr)
+            {
+                m_runner->kill();
+            }
         }
     }
 }

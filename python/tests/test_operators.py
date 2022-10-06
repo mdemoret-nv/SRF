@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import random
 import time
 import typing
 
@@ -25,7 +26,7 @@ from srf.core import operators as ops
 @pytest.fixture
 def ex_runner():
 
-    def run_exec(segment_init):
+    def run_exec(segment_init, num_threads=1, use_fibers=True):
         pipeline = srf.Pipeline()
 
         pipeline.make_segment("my_seg", segment_init)
@@ -33,7 +34,12 @@ def ex_runner():
         options = srf.Options()
 
         # Set to 1 thread
-        options.topology.user_cpuset = "0-0"
+        options.topology.user_cpuset = f"0-{num_threads-1}"
+
+        if use_fibers:
+            options.engine_factories.default_engine_type = srf.core.options.EngineType.Fiber
+        else:
+            options.engine_factories.default_engine_type = srf.core.options.EngineType.Thread
 
         executor = srf.Executor(options)
 
@@ -49,7 +55,7 @@ def ex_runner():
 @pytest.fixture
 def run_segment(ex_runner):
 
-    def run(input_data, node_fn):
+    def run(input_data, node_fn, num_threads=1, use_fibers=True):
 
         actual = []
         raised_error = None
@@ -60,8 +66,6 @@ def run_segment(ex_runner):
 
             node = seg.make_node_full("test", node_fn)
             seg.make_edge(source, node)
-
-            node.launch_options.pe_count = 1
 
             def sink_on_next(x):
                 actual.append(x)
@@ -77,7 +81,7 @@ def run_segment(ex_runner):
             sink = seg.make_sink("sink", sink_on_next, sink_on_error, sink_on_completed)
             seg.make_edge(node, sink)
 
-        ex_runner(segment_fn)
+        ex_runner(segment_fn, num_threads=num_threads, use_fibers=use_fibers)
 
         assert did_complete, "Sink on_completed was not called"
 
@@ -135,10 +139,67 @@ def test_flat_map(run_segment):
 
         input.pipe(ops.flat_map(flat_map_fn)).subscribe(output)
 
-    actual, raised_error = run_segment(input_data, node_fn)
+    actual, raised_error = run_segment(input_data, node_fn, num_threads=len(input_data), use_fibers=False)
 
     assert actual == expected
 
+@pytest.mark.parametrize("use_fibers", (True, False))
+def test_create_flat_map(run_segment, use_fibers):
+    random.seed()
+    input_data = [0, 1, 2]
+    expected = [(0, 1), (0, 2), (0, 3),
+                (1, 1), (1, 2), (1, 3),
+                (2, 1), (2, 2), (2, 3)]
+    actual = []
+
+    def node_fn(input: srf.Observable, output: srf.Subscriber):
+
+        def py_fn(x):
+            def inner():
+                for i in range(1, 4):
+                    st = random.randrange(1, 100)
+                    time.sleep(0.001 * st)
+                    yield (x, i)
+
+            return srf.Observable.create(inner, True)
+
+        input.pipe(ops.flat_map(py_fn)).subscribe(output)
+
+    actual, raised_error = run_segment(input_data, node_fn, num_threads=len(input_data), use_fibers=use_fibers)
+
+    assert raised_error is None
+
+    print(actual)
+
+    # flatmap data is likely out-of-order
+    assert sorted(actual) == expected
+
+
+@pytest.mark.parametrize("use_fibers", (True, False))
+def test_create_concat_map(run_segment, use_fibers):
+    random.seed()
+    input_data = [0, 1, 2]
+    expected = [(0, 1), (0, 2), (0, 3),
+                (1, 1), (1, 2), (1, 3),
+                (2, 1), (2, 2), (2, 3)]
+    actual = []
+
+    def node_fn(input: srf.Observable, output: srf.Subscriber):
+
+        def py_fn(x):
+            def inner():
+                for i in range(1, 4):
+                    st = random.randrange(1, 100)
+                    time.sleep(0.001 * st)
+                    yield (x, i)
+
+            return srf.Observable.create(inner, True)
+
+        input.pipe(ops.concat_map(py_fn)).subscribe(output)
+
+    actual, raised_error = run_segment(input_data, node_fn, num_threads=len(input_data), use_fibers=use_fibers)
+
+    assert actual == expected
 
 def test_flatten(run_segment):
 
@@ -371,7 +432,7 @@ def test_map_async_with_iterables(run_segment, input_data, dask_client):
 
             return pack_data(x, lambda y: dask_client.submit(double, y))
 
-        input.pipe(ops.map_async(map_fn), ops.map(after_map_fn)).subscribe(output)
+        input.pipe(ops.map(map_fn), ops.from_future(), ops.map(after_map_fn)).subscribe(output)
 
     actual, raised_error = run_segment(input_data, node_fn)
 

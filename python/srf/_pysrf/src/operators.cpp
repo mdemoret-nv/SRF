@@ -72,8 +72,6 @@ py::object wait_on_futures(py::object future_object)
         return future_object.get_type()(output_list);
     }
 
-    auto dask_future_type = py::module_::import("dask.distributed").attr("Future");
-
     // So its not a supported container. We just want to check the done() and result() method which is supported by any
     // Future-like class (concurrent.futures.Future and Dask)
     if (py::hasattr(future_object, "done") && py::hasattr(future_object, "result"))
@@ -435,4 +433,19 @@ PythonOperator OperatorsProxy::flat_map(std::function<PyObjectObservable(pybind1
         });
     });
 }
+
+PythonOperator OperatorsProxy::concat_map(std::function<PyObjectObservable(pybind11::object x)> concat_map_fn)
+{
+    return PythonOperator("concat_map", [concat_map_fn](PyObjectObservable source) {
+        return source.concat_map([concat_map_fn](PyHolder data_object) {
+            AcquireGIL gil;
+
+            // Call the map function
+            auto returned = concat_map_fn(std::move(data_object));
+
+            return returned;
+        });
+    });
+}
+
 }  // namespace srf::pysrf
