@@ -143,7 +143,8 @@ def test_flat_map(run_segment):
 
     assert actual == expected
 
-def test_create_flat_map(run_segment):
+@pytest.mark.parametrize("use_fibers", (True, False))
+def test_create_flat_map(run_segment, use_fibers):
     random.seed()
     input_data = [0, 1, 2]
     expected = [(0, 1), (0, 2), (0, 3),
@@ -164,7 +165,7 @@ def test_create_flat_map(run_segment):
 
         input.pipe(ops.flat_map(py_fn)).subscribe(output)
 
-    actual, raised_error = run_segment(input_data, node_fn, num_threads=len(input_data), use_fibers=False)
+    actual, raised_error = run_segment(input_data, node_fn, num_threads=len(input_data), use_fibers=use_fibers)
 
     assert raised_error is None
 
@@ -174,7 +175,8 @@ def test_create_flat_map(run_segment):
     assert sorted(actual) == expected
 
 
-def test_create_concat_map(run_segment):
+@pytest.mark.parametrize("use_fibers", (True, False))
+def test_create_concat_map(run_segment, use_fibers):
     random.seed()
     input_data = [0, 1, 2]
     expected = [(0, 1), (0, 2), (0, 3),
@@ -195,7 +197,7 @@ def test_create_concat_map(run_segment):
 
         input.pipe(ops.concat_map(py_fn)).subscribe(output)
 
-    actual, raised_error = run_segment(input_data, node_fn, num_threads=len(input_data), use_fibers=False)
+    actual, raised_error = run_segment(input_data, node_fn, num_threads=len(input_data), use_fibers=use_fibers)
 
     assert actual == expected
 
