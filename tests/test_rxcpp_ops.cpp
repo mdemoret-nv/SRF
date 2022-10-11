@@ -218,7 +218,7 @@ TEST_F(TestRxcppOps, flat_map_in_segment)
                                                                       s << v1 << " - " << v2;
                                                                       return s.str();
                                                                   },
-                                                                  srf::runnable::observe_on_new_srf_thread()));
+                                                                  srf::runnable::observe_on_srf_scheduler()));
 
         auto sink = segment.make_sink<std::string>(
             "sink",

@@ -90,7 +90,7 @@ template <typename T, typename ContextT>
 void RxSource<T, ContextT>::do_subscribe(rxcpp::composite_subscription& subscription)
 {
     auto observable = this->apply_epilogue_taps(m_observable);
-    observable.subscribe(subscription, RxSourceBase<T>::observer());
+    observable.as_blocking().subscribe(subscription, RxSourceBase<T>::observer());
 }
 
 template <typename T, typename ContextT>

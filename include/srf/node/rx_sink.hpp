@@ -110,7 +110,7 @@ void RxSink<T, ContextT>::do_subscribe(rxcpp::composite_subscription& subscripti
         },
         [this] { m_observer.on_completed(); });
 
-    observable.subscribe(subscription, default_error_handler);
+    observable.as_blocking().subscribe(subscription, default_error_handler);
 }
 
 template <typename T, typename ContextT>
