@@ -15,9 +15,12 @@
  * limitations under the License.
  */
 
-#include "./test_srf.hpp"  // IWYU pragma: associated
 #include "rxcpp/rx.hpp"
 
+#include "internal/system/resources.hpp"
+#include "internal/system/system.hpp"
+
+#include "srf/core/bitmap.hpp"
 #include "srf/core/executor.hpp"
 #include "srf/pipeline/pipeline.hpp"
 #include "srf/runnable/rx_thread_factory.hpp"
@@ -34,7 +37,21 @@
 #include <vector>
 
 using namespace std::chrono_literals;
-TEST_CLASS(RxcppOps);
+using namespace srf;
+class TestRxcpp : public ::testing::Test
+{
+  protected:
+    static std::shared_ptr<Options> make_options(std::function<void(Options&)> updater = nullptr)
+    {
+        auto options = std::make_shared<Options>();
+        if (updater)
+        {
+            updater(*options);
+        }
+
+        return options;
+    }
+};
 
 std::string get_tid()
 {
@@ -72,7 +89,7 @@ void execute_pipeline(std::unique_ptr<pipeline::Pipeline> pipeline, unsigned sho
     exec.join();
 }
 
-TEST_F(TestRxcppOps, concat_map)
+TEST_F(TestRxcpp, concat_map)
 {
     auto values = rxcpp::observable<>::range(1, 3).concat_map(
         [](int v) {
@@ -85,7 +102,7 @@ TEST_F(TestRxcppOps, concat_map)
                      []() { printf("OnCompleted\n"); });
 }
 
-TEST_F(TestRxcppOps, flat_map)
+TEST_F(TestRxcpp, flat_map)
 {
     auto values = rxcpp::observable<>::range(1, 3).flat_map(
         [](int v) {
@@ -98,7 +115,7 @@ TEST_F(TestRxcppOps, flat_map)
                      []() { printf("OnCompleted\n"); });
 }
 
-TEST_F(TestRxcppOps, threaded_concat_map)
+TEST_F(TestRxcpp, threaded_concat_map)
 {
     auto values = rxcpp::observable<>::range(1, 3).concat_map(
         [](int v) {
@@ -115,8 +132,19 @@ TEST_F(TestRxcppOps, threaded_concat_map)
         []() { printf("[thread %s] OnCompleted\n", get_tid().c_str()); });
 }
 
-TEST_F(TestRxcppOps, threaded_flat_map)
+TEST_F(TestRxcpp, threaded_flat_map)
 {
+    auto system = srf::internal::system::make_system(make_options([](Options& options) {
+        // ensure we have 4 logical cpus
+        options.topology().user_cpuset("0-3");
+    }));
+
+    CpuSet cpu_set(Bitmap("0-3"));
+
+    srf::internal::system::Resources resources((srf::internal::system::SystemProvider(system)));
+
+    auto pool = resources.make_fiber_pool(cpu_set);
+
     std::size_t iterations           = 3;
     std::size_t sink_call_count      = 0;
     std::size_t conpleted_call_count = 0;
@@ -136,7 +164,7 @@ TEST_F(TestRxcppOps, threaded_flat_map)
             //     .take(iterations);
         },
         [](int v_main, int v_sub) { return std::make_tuple(v_main, v_sub); },
-        rxcpp::observe_on_new_thread());
+        rxcpp::identitiy_fiber_pool(pool));
 
     values.as_blocking().subscribe(
         [&sink_call_count](std::tuple<int, long> v) {
@@ -153,7 +181,7 @@ TEST_F(TestRxcppOps, threaded_flat_map)
     EXPECT_EQ(conpleted_call_count, 1);
 }
 
-TEST_F(TestRxcppOps, concat_map_in_segment)
+TEST_F(TestRxcpp, concat_map_in_segment)
 {
     std::size_t iterations = 3;
 
@@ -198,7 +226,7 @@ TEST_F(TestRxcppOps, concat_map_in_segment)
     execute_pipeline(std::move(pipeline), iterations);
 }
 
-TEST_F(TestRxcppOps, flat_map_in_segment)
+TEST_F(TestRxcpp, flat_map_in_segment)
 {
     std::size_t iterations           = 3;
     std::size_t sink_call_count      = 0;
@@ -253,7 +281,7 @@ TEST_F(TestRxcppOps, flat_map_in_segment)
     EXPECT_EQ(conpleted_call_count, 1);
 }
 
-TEST_F(TestRxcppOps, flat_map_create_in_segment)
+TEST_F(TestRxcpp, flat_map_create_in_segment)
 {
     std::size_t iterations           = 3;
     std::size_t sink_call_count      = 0;

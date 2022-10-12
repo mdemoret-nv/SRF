@@ -1,12 +1,15 @@
 #pragma once
 
+#include "srf/core/fiber_pool.hpp"
 #include "srf/runnable/context.hpp"
 #include "srf/runnable/engine.hpp"
 #include "srf/types.hpp"
 
+#include <boost/fiber/operations.hpp>
 #include <glog/logging.h>
 #include <rxcpp/operators/rx-observe_on.hpp>
 
+#include <atomic>
 #include <functional>
 #include <thread>
 
@@ -194,3 +197,110 @@ rxcpp::observe_on_one_worker observe_on_new_srf_thread()
 }
 
 }  // namespace srf::runnable
+
+namespace rxcpp {
+namespace schedulers {
+class fiber_pool_scheduler : public scheduler_interface
+{
+  private:
+    typedef fiber_pool_scheduler this_type;
+    srf::core::FiberPool& m_pool;
+
+    fiber_pool_scheduler(const this_type&) = delete;
+
+    struct pool_worker : public worker_interface
+    {
+      private:
+        typedef pool_worker this_type;
+
+      public:
+        explicit pool_worker(composite_subscription cs, srf::core::FiberPool& pool) : lifetime(cs), m_pool(pool)
+        {
+            printf("worker %p created\n", this);
+        }
+
+        virtual ~pool_worker()
+        {
+            printf("worker %p destroyed\n", this);
+            lifetime.unsubscribe();
+        }
+
+        virtual clock_type::time_point now() const override
+        {
+            return clock_type::now();
+        }
+
+        virtual void schedule(const schedulable& scbl) const override
+        {
+            if (scbl.is_subscribed())
+            {
+                auto keep_alive = shared_from_this();
+                m_pool.enqueue(m_queue_idx++ % m_pool.thread_count(), [keep_alive, scbl]() {
+                    // (void)(keep_alive);  // Needed for capture
+                    // allow recursion
+                    scbl(recursion(true).get_recurse());
+                });
+            }
+        }
+
+        virtual void schedule(clock_type::time_point when, const schedulable& scbl) const override
+        {
+            if (scbl.is_subscribed())
+            {
+                auto keep_alive = shared_from_this();
+                m_pool.enqueue(m_queue_idx++ % m_pool.thread_count(), [keep_alive, scbl, when]() {
+                    // (void)(keep_alive);  // Needed for capture
+                    boost::this_fiber::sleep_until(when);
+                    // allow recursion
+                    scbl(recursion(true).get_recurse());
+                });
+            }
+        }
+
+        composite_subscription lifetime;
+        srf::core::FiberPool& m_pool;
+        mutable std::atomic_size_t m_queue_idx{0};
+    };
+
+  public:
+    fiber_pool_scheduler(srf::core::FiberPool& pool) : m_pool(pool) {}
+
+    virtual ~fiber_pool_scheduler() {}
+
+    virtual clock_type::time_point now() const
+    {
+        return clock_type::now();
+    }
+
+    virtual worker create_worker(composite_subscription cs) const
+    {
+        return worker(cs, std::make_shared<pool_worker>(cs, m_pool));
+    }
+};
+
+inline scheduler make_fiber_pool(srf::core::FiberPool& pool)
+{
+    return make_scheduler<fiber_pool_scheduler>(pool);
+}
+}  // End of namespace schedulers
+
+inline observe_on_one_worker observe_on_fiber_pool(srf::core::FiberPool& pool)
+{
+    return observe_on_one_worker(rxsc::make_fiber_pool(pool));
+}
+
+inline synchronize_in_one_worker synchronize_in_fiber_pool(srf::core::FiberPool& pool)
+{
+    return synchronize_in_one_worker(rxsc::make_fiber_pool(pool));
+}
+
+inline identity_one_worker identitiy_fiber_pool(srf::core::FiberPool& pool)
+{
+    return identity_one_worker(rxsc::make_fiber_pool(pool));
+}
+
+inline serialize_one_worker serialize_fiber_pool(srf::core::FiberPool& pool)
+{
+    return serialize_one_worker(rxsc::make_fiber_pool(pool));
+}
+}  // namespace rxcpp
