@@ -29,12 +29,12 @@
 
 namespace srf::internal::control_plane::client {
 
-SubscriptionService::SubscriptionService(const std::string& service_name, Instance& instance) :
-  m_service_name(std::move(service_name)),
+SubscriptionService::SubscriptionService(std::shared_ptr<srf::pubsub::IService> service, Instance& instance) :
+  m_service(std::move(service)),
   m_instance(instance)
 {
     service_set_description(
-        SRF_CONCAT_STR("subscription_service " << m_service_name << "[" << instance.instance_id() << "]"));
+        SRF_CONCAT_STR("subscription_service " << m_service->service_name() << "[" << instance.instance_id() << "]"));
 }
 
 SubscriptionService::~SubscriptionService()
@@ -44,7 +44,7 @@ SubscriptionService::~SubscriptionService()
 
 const std::string& SubscriptionService::service_name() const
 {
-    return m_service_name;
+    return m_service->service_name();
 }
 
 Role& SubscriptionService::subscriptions(const std::string& role)
@@ -95,8 +95,11 @@ Expected<> SubscriptionService::register_subscription_service()
     auto resp = m_instance.client().await_unary<protos::RegisterSubscriptionServiceResponse>(
         protos::ClientUnaryRegisterSubscriptionService, std::move(req));
     SRF_EXPECT(resp);
-    m_tag = resp->tag();
-    DVLOG(10) << "registered subscription_service: " << service_name() << "; role: " << role() << "; tag: " << m_tag;
+
+    m_service = this->create_internal_service(resp->tag());
+
+    DVLOG(10) << "registered subscription_service: " << service_name() << "; role: " << role()
+              << "; tag: " << m_service->tag();
     return {};
 }
 
@@ -147,8 +150,8 @@ std::function<void()> SubscriptionService::drop_subscription_service() const
 
 const std::uint64_t& SubscriptionService::tag() const
 {
-    DCHECK(m_tag != 0);
-    return m_tag;
+    DCHECK(m_service);
+    return m_service->tag();
 }
 
 Role::Role(SubscriptionService& subscription_service, std::string role_name) :

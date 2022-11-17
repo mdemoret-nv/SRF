@@ -293,10 +293,25 @@ class PublisherBase : public ClientSubscriptionBase
 //     friend Publisher<T>;
 // };
 
-template <typename T>
-class Publisher : public PublisherBase, public node::SinkProperties<T>, private node::SourceChannel<T>
+class IPublisher : public IService, public node::SinkChannel<std::unique_ptr<srf::remote_descriptor::Storage>>
 {
-    Publisher(std::string service_name, core::IRuntime& runtime) : PublisherBase(std::move(service_name), runtime) {}
+  public:
+    ~IPublisher() override = default;
+
+    virtual std::unique_ptr<codable::EncodedObject> create_storage() = 0;
+};
+
+template <typename T>
+class Publisher : public node::SinkProperties<T>,
+                  private node::SourceChannel<std::unique_ptr<srf::remote_descriptor::Storage>>
+{
+    // Publisher(std::string service_name, core::IRuntime& runtime) : PublisherBase(std::move(service_name), runtime) {}
+
+    Publisher(std::shared_ptr<IPublisher> publisher) : m_publisher(std::move(publisher))
+    {
+        // Link the downstream IPublisher
+        srf::node::make_edge(*this, *publisher);
+    }
 
   public:
     using data_t   = T;
@@ -309,8 +324,9 @@ class Publisher : public PublisherBase, public node::SinkProperties<T>, private 
 
     void close() override
     {
-        // Call the base first
-        PublisherBase::close();
+        // // Call the base first
+        // PublisherBase::close();
+        m_publisher->close();
 
         // Now drop any connections
         this->release_channel();
@@ -332,7 +348,10 @@ class Publisher : public PublisherBase, public node::SinkProperties<T>, private 
 
         channel::Status await_write(T&& data) override
         {
-            return m_parent.await_write(std::move(data));
+            auto storage =
+                remote_descriptor::TypedStorage<T>::create(std::move(data), m_parent.m_publisher->create_storage());
+
+            return m_parent.await_write(std::move(storage));
         }
 
       private:
@@ -431,6 +450,8 @@ class Publisher : public PublisherBase, public node::SinkProperties<T>, private 
     std::weak_ptr<Upstream> m_upstream;
     // Promise<std::shared_ptr<PublisherEdge<T>>> m_edge_promise;
     // std::shared_ptr<EncodeNodeComponent<T>> m_encode_node;
+
+    std::shared_ptr<IPublisher> m_publisher;
 
     // friend PublisherManager;
 
@@ -561,25 +582,28 @@ class PublisherRoundRobin : public Publisher<T>
 //     std::vector<TagID> m_tagged_ids;
 // };
 
-template <typename PublisherT, typename... ArgsT>
-auto make_publisher(std::string name, core::IRuntime& runtime, ArgsT&&... args)
+std::unique_ptr<IPublisher> make_pub_service(std::string name, core::IRuntime& runtime);
+
+template <typename T>
+auto make_publisher(std::string name, core::IRuntime& runtime)
 {
-    // Assert that PublisherT derives from publisher
+    // Create the internal publisher object
+    auto internal_publisher = make_pub_service(std::move(name), runtime);
 
     // Get the data type
-    using data_t = typename PublisherT::data_t;
+    // using data_t = typename PublisherT::data_t;
 
     // // Create the edge object
     // auto pub_edge = std::make_shared<PublisherEdge<data_t>>();
 
     // Create the actual publisher
-    auto pub = std::shared_ptr<PublisherT>(new PublisherT(std::move(name), runtime, std::forward<ArgsT>(args)...));
+    auto pub = std::shared_ptr<Publisher<T>>(new Publisher<T>(std::move(internal_publisher)));
 
     // Get a future to the edge that will be created during make_pub_service
     // auto pub_edge_future = pub->get_edge();
 
-    // Now build the service
-    make_pub_service(pub, runtime);
+    // // Now build the service
+    // make_pub_service(pub, runtime);
 
     // // Now set the drop function into the publisher edge
     // pub_edge->m_drop_service_fn = std::move(drop_service_fn);
@@ -588,6 +612,6 @@ auto make_publisher(std::string name, core::IRuntime& runtime, ArgsT&&... args)
     return pub;
 }
 
-void make_pub_service(std::shared_ptr<PublisherBase> publisher, core::IRuntime& runtime);
+// void make_pub_service(std::shared_ptr<PublisherBase> publisher, core::IRuntime& runtime);
 
 }  // namespace srf::pubsub

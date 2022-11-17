@@ -27,9 +27,11 @@
 #include "srf/node/sink_channel.hpp"
 #include "srf/node/source_channel.hpp"
 #include "srf/protos/architect.pb.h"
+#include "srf/pubsub/client_subscription_base.hpp"
 #include "srf/types.hpp"
 #include "srf/utils/macros.hpp"
 
+#include <memory>
 #include <set>
 #include <string>
 #include <utility>
@@ -43,7 +45,7 @@ class Role;
 class SubscriptionService : public Service
 {
   public:
-    SubscriptionService(const std::string& service_name, Instance& instance);
+    SubscriptionService(std::shared_ptr<srf::pubsub::IService> service, Instance& instance);
 
     ~SubscriptionService() override;
 
@@ -66,14 +68,20 @@ class SubscriptionService : public Service
         ::srf::pubsub::SubscriptionState state,
         const std::unordered_map<std::uint64_t, ::srf::pubsub::SubscriptionMember>& members) = 0;
 
+    srf::pubsub::IService& service();
+
   private:
     Expected<> get_or_create_subscription_service();
     Expected<> register_subscription_service();
 
-    const std::string m_service_name;
-    std::uint64_t m_tag{0};
+    virtual void set_tag(TagID tag)                                                   = 0;
+    virtual std::unique_ptr<srf::pubsub::IService> create_internal_service(TagID tag) = 0;
+
+    // const std::string m_service_name;
+    // std::uint64_t m_tag{0};
     Instance& m_instance;
     std::map<std::string, std::unique_ptr<Role>> m_subscriptions;
+    std::shared_ptr<srf::pubsub::IService> m_service;
 
     friend Role;
     friend Instance;

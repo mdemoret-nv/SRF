@@ -295,25 +295,27 @@ class SubscriberBase : public ClientSubscriptionBase
 //     // friend auto make_subscriber(std::string name, core::IRuntime& runtime, ArgsT&&... args);
 // };
 
-template <typename T>
-class Subscriber : public SubscriberBase, private node::SinkProperties<T>, public node::SourceChannel<T>
+class ISubscriber : public IService, public node::SinkProperties<std::unique_ptr<codable::EncodedObject>>
 {
-    Subscriber(std::string service_name, core::IRuntime& runtime) : SubscriberBase(std::move(service_name), runtime) {}
+  public:
+    ~ISubscriber() override = default;
+
+    virtual std::unique_ptr<codable::EncodedObject> create_storage() = 0;
+};
+
+template <typename T>
+class Subscriber : private node::SinkProperties<std::unique_ptr<codable::EncodedObject>>, public node::SourceChannel<T>
+{
+    Subscriber(std::shared_ptr<ISubscriber> subscriber) : m_subscriber(std::move(subscriber))
+    {
+        // Link the upstream to this object
+        node::make_edge(*subscriber, *this);
+    }
 
   public:
     using data_t = T;
 
     ~Subscriber() override = default;
-
-    // DELETE_COPYABILITY(Subscriber);
-    // DELETE_MOVEABILITY(Subscriber);
-
-    // void deserialize(const codable::EncodedObject& encoded_object) override
-    // {
-    //     T val = codable::decode<T>(encoded_object);
-
-    //     m_subcriber_channel.await_write(std::move(val));
-    // }
 
   private:
     struct Upstream : channel::Ingress<T>
@@ -329,9 +331,13 @@ class Subscriber : public SubscriberBase, private node::SinkProperties<T>, publi
             m_parent.release_channel();
         }
 
-        channel::Status await_write(T&& data) override
+        channel::Status await_write(std::unique_ptr<codable::EncodedObject>&& data) override
         {
-            return m_parent.await_write(std::move(data));
+            T val = codable::decode<T>(*data);
+
+            data.reset();
+
+            return m_parent.await_write(std::move(val));
         }
 
       private:
@@ -364,8 +370,6 @@ class Subscriber : public SubscriberBase, private node::SinkProperties<T>, publi
 
         // Link our node to the edge
         srf::node::make_edge(*m_decode_node, *this);
-
-        VLOG(10) << "SubscriberManager:: Launching Reader";
 
         // auto writer = launch_control.prepare_launcher(launch_options, std::move(node))->ignition();
 
@@ -401,40 +405,36 @@ class Subscriber : public SubscriberBase, private node::SinkProperties<T>, publi
         LOG(FATAL) << "Cannot get channel_ingress. Ingress has already been destroyed.";
     }
 
-    virtual T on_data(std::unique_ptr<codable::EncodedObject> object)
-    {
-        auto val = codable::decode<T>(*object);
-
-        return val;
-    }
-
     std::weak_ptr<Upstream> m_upstream;
     // Promise<std::shared_ptr<SubscriberEdge<T>>> m_edge_promise;
     std::shared_ptr<DecodeNodeComponent<T>> m_decode_node;
+    std::shared_ptr<ISubscriber> m_subscriber;
 
     template <typename SubscriberT, typename... ArgsT>
     friend auto make_subscriber(std::string name, core::IRuntime& runtime, ArgsT&&... args);
 };
 
-template <typename SubscriberT, typename... ArgsT>
-auto make_subscriber(std::string name, core::IRuntime& runtime, ArgsT&&... args)
+std::shared_ptr<ISubscriber> make_sub_service(std::string name, core::IRuntime& runtime);
+
+template <typename T>
+auto make_subscriber(std::string name, core::IRuntime& runtime)
 {
-    // Assert that SubscriberT derives from subscriber
+    auto internal_subscriber = make_sub_service(std::move(name), runtime);
 
     // Get the data type
-    using data_t = typename SubscriberT::data_t;
+    // using data_t = typename SubscriberT::data_t;
 
     // // Create the edge object
     // auto pub_edge = std::make_shared<SubscriberEdge<data_t>>();
 
     // Create the actual subscriber
-    auto sub = std::shared_ptr<SubscriberT>(new SubscriberT(std::move(name), runtime, std::forward<ArgsT>(args)...));
+    auto sub = std::shared_ptr<Subscriber<T>>(new Subscriber<T>(std::move(internal_subscriber)));
 
     // Get a future to the edge that will be created during make_pub_service
     // auto pub_edge_future = pub->get_edge();
 
     // Now build the service
-    make_sub_service(sub, runtime);
+    // make_sub_service(sub, runtime);
 
     // // Now set the drop function into the subscriber edge
     // pub_edge->m_drop_service_fn = std::move(drop_service_fn);
@@ -442,7 +442,5 @@ auto make_subscriber(std::string name, core::IRuntime& runtime, ArgsT&&... args)
     // Finally, return the edge
     return sub;
 }
-
-void make_sub_service(std::shared_ptr<SubscriberBase> subscriber, core::IRuntime& runtime);
 
 }  // namespace srf::pubsub

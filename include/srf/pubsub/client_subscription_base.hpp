@@ -55,6 +55,19 @@ class PubSubBase;
 
 namespace srf::pubsub {
 
+class IService
+{
+  public:
+    virtual ~IService() = default;
+
+    virtual const std::string& service_name() const = 0;
+    virtual const TagID& tag() const                = 0;
+
+    virtual void close() = 0;
+
+    virtual core::IRuntime& runtime() = 0;
+};
+
 template <typename T>
 class Publisher;
 

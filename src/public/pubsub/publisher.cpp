@@ -134,22 +134,34 @@ std::unique_ptr<runnable::Runner> PublisherBase::link_service(
 //     return m_parent;
 // }
 
-void make_pub_service(std::shared_ptr<PublisherBase> publisher, core::IRuntime& runtime)
+// void make_pub_service(std::shared_ptr<PublisherBase> publisher, core::IRuntime& runtime)
+// {
+//     // Cast the runtime to the internal runtime
+//     auto& internal_runtime = dynamic_cast<internal::runtime::Runtime&>(runtime);
+
+//     // Create the new service
+//     std::unique_ptr<internal::pubsub::PublisherManager> manager =
+//         std::make_unique<internal::pubsub::PublisherManager>(std::move(publisher), internal_runtime);
+
+//     // Start the service
+//     internal_runtime.resources().network()->control_plane().register_subscription_service(std::move(manager));
+
+//     // // Capture the drop_service lambda
+//     // auto drop_service_fn = manager->get_drop_service_fn();
+
+//     // return drop_service_fn;
+// }
+
+std::unique_ptr<IPublisher> make_pub_service(std::string name, core::IRuntime& runtime)
 {
     // Cast the runtime to the internal runtime
     auto& internal_runtime = dynamic_cast<internal::runtime::Runtime&>(runtime);
 
     // Create the new service
     std::unique_ptr<internal::pubsub::PublisherManager> manager =
-        std::make_unique<internal::pubsub::PublisherManager>(std::move(publisher), internal_runtime);
+        std::make_unique<internal::pubsub::PublisherManager>(std::move(name), internal_runtime);
 
     // Start the service
     internal_runtime.resources().network()->control_plane().register_subscription_service(std::move(manager));
-
-    // // Capture the drop_service lambda
-    // auto drop_service_fn = manager->get_drop_service_fn();
-
-    // return drop_service_fn;
 }
-
 }  // namespace srf::pubsub

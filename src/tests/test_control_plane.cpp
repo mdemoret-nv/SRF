@@ -402,14 +402,7 @@ TEST_F(TestControlPlane, DoubleClientPubSub)
 
     auto publisher = srf::pubsub::make_publisher<pubsub::PublisherRoundRobin<int>>("my_int", client_1.runtime(0));
 
-    // auto sink = node::RxSink<int>();
-
-    // srf::node::make_edge(*publisher, sink);
-
-    LOG(INFO) << "MAKE SUBSCRIBER";
     auto subscriber = srf::pubsub::make_subscriber<pubsub::Subscriber<int>>("my_int", client_2.runtime(0));
-
-    client_1.runtime(0).resources().network()->control_plane().client().request_update();
 
     auto source = std::make_shared<node::SourceChannelWriteable<int>>();
 

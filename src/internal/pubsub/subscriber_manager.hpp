@@ -117,33 +117,16 @@ class SubscriberParser : public node::SinkProperties<memory::TransientBuffer>,
     runtime::Runtime& m_runtime;
 };
 
-// class SubscriberManagerBase : public PubSubBase
-// {
-//   public:
-//     SubscriberManagerBase(std::shared_ptr<srf::pubsub::SubscriberBase> subscriber, runtime::Runtime& runtime) :
-//       PubSubBase(subscriber, runtime)
-//     {}
-
-//     ~SubscriberManagerBase() override = default;
-
-//     const std::string& role() const final
-//     {
-//         return role_subscriber();
-//     }
-
-//     const std::set<std::string>& subscribe_to_roles() const final
-//     {
-//         static std::set<std::string> r = {role_publisher()};
-//         return r;
-//     }
-// };
+class InternalSubscriber : public ::srf::pubsub::ISubscriber,
+                           public node::SourceChannel<std::unique_ptr<codable::EncodedObject>>
+{};
 
 class SubscriberManager : public PubSubBase
 {
   public:
     // SubscriberManager(std::string name, runtime::Runtime& runtime) : SubscriberManagerBase(std::move(name), runtime)
     // {}
-    SubscriberManager(std::shared_ptr<srf::pubsub::SubscriberBase> subscriber, runtime::Runtime& runtime) :
+    SubscriberManager(std::shared_ptr<InternalSubscriber> subscriber) :
       PubSubBase(subscriber, runtime),
       m_subscriber(std::move(subscriber))
     {}
@@ -189,7 +172,7 @@ class SubscriberManager : public PubSubBase
         if (all_closed && state == ::srf::pubsub::SubscriptionState::Connected)
         {
             // Call the close function on the subscription
-            m_subscriber->close();
+            this->service().close();
 
             // // This should immediately close all downstream
             // resources().network()->data_plane().server().deserialize_source().drop_edge(this->tag());
@@ -256,8 +239,10 @@ class SubscriberManager : public PubSubBase
         node::make_edge(resources().network()->data_plane().server().deserialize_source().source(this->tag()),
                         *network_reader);
 
-        // Link the subscriber before launching the runnable
-        m_subscriber->link_service(this->tag(), this->drop_subscription_service(), *network_reader);
+        // Link the network reader to the ISubscription
+
+        // // Link the subscriber before launching the runnable
+        // m_subscriber->link_service(this->tag(), this->drop_subscription_service(), *network_reader);
 
         auto launch_options = resources().network()->data_plane().launch_options(1);
 
@@ -297,7 +282,7 @@ class SubscriberManager : public PubSubBase
     //     m_reader->await_join();
     // }
 
-    std::shared_ptr<srf::pubsub::SubscriberBase> m_subscriber;
+    // std::shared_ptr<srf::pubsub::SubscriberBase> m_subscriber;
     // std::unique_ptr<srf::runnable::Runner> m_reader;
     // std::shared_ptr<SubscriberParser> m_sub_parser;
     // std::unordered_map<std::uint64_t, InstanceID> m_tagged_instances;

@@ -39,10 +39,9 @@ class PubSubBase : public control_plane::client::SubscriptionService
   public:
     using tagged_members_t = ::srf::pubsub::ClientSubscriptionBase::tagged_members_t;
 
-    PubSubBase(std::shared_ptr<srf::pubsub::ClientSubscriptionBase> client_subscription, runtime::Runtime& runtime) :
-      SubscriptionService(client_subscription->service_name(), runtime.resources().network()->control_plane()),
-      m_runtime(runtime),
-      m_client_subscription(client_subscription)
+    PubSubBase(std::shared_ptr<srf::pubsub::IService> client_subscription) :
+      SubscriptionService(client_subscription, client_subscription->runtime().resources().network()->control_plane()),
+      m_runtime(runtime)
     {}
     using SubscriptionService::SubscriptionService;
 
@@ -127,7 +126,7 @@ class PubSubBase : public control_plane::client::SubscriptionService
   private:
     runtime::Runtime& m_runtime;
     std::unique_ptr<srf::runnable::Runner> m_main_runner;
-    std::shared_ptr<srf::pubsub::ClientSubscriptionBase> m_client_subscription;
+    // std::shared_ptr<srf::pubsub::ClientSubscriptionBase> m_client_subscription;
     // std::unordered_map<TagID, InstanceID> m_tagged_instances;
 };
 

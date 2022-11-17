@@ -160,35 +160,13 @@ class LambdaSinkComponent : public node::SinkProperties<T>
     on_data_fn_t m_on_data_fn;
 };
 
-// class PublisherManagerBase : public PubSubBase
-// {
-//   public:
-//     PublisherManagerBase(std::shared_ptr<srf::pubsub::PublisherBase> publisher, runtime::Runtime& runtime) :
-//       PubSubBase(publisher, runtime)
-//     {}
+class InternalPublisher : ::srf::pubsub::IPublisher
+{};
 
-//     ~PublisherManagerBase() override = default;
-
-//     const std::string& role() const final
-//     {
-//         return role_publisher();
-//     }
-
-//     const std::set<std::string>& subscribe_to_roles() const final
-//     {
-//         static std::set<std::string> r = {role_subscriber()};
-//         return r;
-//     }
-// };
-
-// template <typename T>
 class PublisherManager : public PubSubBase
 {
   public:
-    PublisherManager(std::shared_ptr<srf::pubsub::PublisherBase> publisher, runtime::Runtime& runtime) :
-      PubSubBase(publisher, runtime),
-      m_publisher(std::move(publisher))
-    {}
+    PublisherManager(std::string name, runtime::Runtime& runtime) : PubSubBase(publisher, runtime) {}
 
     ~PublisherManager() override
     {
@@ -281,18 +259,37 @@ class PublisherManager : public PubSubBase
         using incoming_t = std::pair<std::uint64_t, std::unique_ptr<srf::remote_descriptor::Storage>>;
 
         // TODO(MDD): Eventually, we should just make this runnable here. Need EgressAcceptor
-        m_sink = std::make_unique<LambdaSinkComponent<incoming_t>>([this](incoming_t&& data) {
-            this->handle_network_message(std::get<0>(data), std::move(std::get<1>(data)));
-        });
+        // m_sink = std::make_unique<LambdaSinkComponent<incoming_t>>([this](incoming_t&& data) {
+        //     this->handle_network_message(std::get<0>(data), std::move(std::get<1>(data)));
+        // });
+
+        auto sink = std::make_unique<node::RxSink<incoming_t>>(
+            [this](incoming_t data) {
+                // Push the message to the network
+                this->handle_network_message(std::get<0>(data), std::move(std::get<1>(data)));
+            },
+            [drop_service_fn = this->drop_subscription_service()]() {
+                // Handle on_complete logic
+                drop_service_fn();
+            });
+
+        auto publisher = dynamic_cast<node::SourceChannelWriteable<std::unique_ptr<srf::remote_descriptor::Storage>>&>(
+            this->service());
+
+        // Make an edge between IPublisher and the sink
+        node::make_edge(publisher, *sink);
 
         auto launch_options = resources().network()->control_plane().client().launch_options();
 
-        // Now that the service has started, link the service to the publisher
-        this->set_main_runner(m_publisher->link_service(this->tag(),
-                                                        this->drop_subscription_service(),
-                                                        resources().runnable().launch_control(),
-                                                        launch_options,
-                                                        *m_sink));
+        this->set_main_runner(
+            resources().runnable().launch_control().prepare_launcher(launch_options, std::move(sink))->ignition());
+
+        // // Now that the service has started, link the service to the publisher
+        // this->set_main_runner(m_publisher->link_service(this->tag(),
+        //                                                 this->drop_subscription_service(),
+        //                                                 resources().runnable().launch_control(),
+        //                                                 launch_options,
+        //                                                 *m_sink));
 
         // auto drop_subscription_service_lambda = drop_subscription_service();
 

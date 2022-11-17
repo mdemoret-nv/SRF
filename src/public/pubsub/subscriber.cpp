@@ -124,22 +124,38 @@ void SubscriberBase::link_service(std::uint64_t tag,
 // }
 // SubscriberEdgeBase::SubscriberEdgeBase(SubscriberBase& parent) : m_parent(parent) {}
 
-void make_sub_service(std::shared_ptr<pubsub::SubscriberBase> subscriber, core::IRuntime& runtime)
+// void make_sub_service(std::shared_ptr<pubsub::SubscriberBase> subscriber, core::IRuntime& runtime)
+// {
+//     // Cast the runtime to the internal runtime
+//     auto& internal_runtime = dynamic_cast<internal::runtime::Runtime&>(runtime);
+
+//     // Create the new service
+//     std::unique_ptr<internal::pubsub::SubscriberManager> manager =
+//         std::make_unique<internal::pubsub::SubscriberManager>(std::move(subscriber), internal_runtime);
+
+//     // Start the service
+//     internal_runtime.resources().network()->control_plane().register_subscription_service(std::move(manager));
+
+//     // // Capture the drop_service lambda
+//     // auto drop_service_fn = manager->get_drop_service_fn();
+
+//     // return drop_service_fn;
+// }
+
+std::shared_ptr<ISubscriber> make_sub_service(std::string name, core::IRuntime& runtime)
 {
     // Cast the runtime to the internal runtime
     auto& internal_runtime = dynamic_cast<internal::runtime::Runtime&>(runtime);
 
+    auto subscriber = std::make_shared<InternalSubscriber>(std::move(name), internal_runtime);
+
     // Create the new service
     std::unique_ptr<internal::pubsub::SubscriberManager> manager =
-        std::make_unique<internal::pubsub::SubscriberManager>(std::move(subscriber), internal_runtime);
+        std::make_unique<internal::pubsub::SubscriberManager>(subscriber);
 
     // Start the service
     internal_runtime.resources().network()->control_plane().register_subscription_service(std::move(manager));
 
-    // // Capture the drop_service lambda
-    // auto drop_service_fn = manager->get_drop_service_fn();
-
-    // return drop_service_fn;
+    return subscriber;
 }
-
 }  // namespace srf::pubsub
