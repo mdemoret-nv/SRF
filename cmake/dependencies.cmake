@@ -67,14 +67,63 @@ find_path(CUB_INCLUDE_DIRS "cub/cub.cuh"
 
 # grpc-repo
 # =========
-rapids_find_package(gRPC REQUIRED
-  GLOBAL_TARGETS
-  gRPC::address_sorting gRPC::gpr gRPC::grpc gRPC::grpc_unsecure gRPC::grpc++ gRPC::grpc++_alts gRPC::grpc++_error_details gRPC::grpc++_reflection
-  gRPC::grpc++_unsecure gRPC::grpc_plugin_support gRPC::grpcpp_channelz gRPC::upb gRPC::grpc_cpp_plugin gRPC::grpc_csharp_plugin gRPC::grpc_node_plugin
-  gRPC::grpc_objective_c_plugin gRPC::grpc_php_plugin gRPC::grpc_python_plugin gRPC::grpc_ruby_plugin
-  BUILD_EXPORT_SET ${PROJECT_NAME}-core-exports
-  INSTALL_EXPORT_SET ${PROJECT_NAME}-core-exports
-)
+# rapids_find_package(gRPC REQUIRED
+#   GLOBAL_TARGETS
+#   gRPC::address_sorting gRPC::gpr gRPC::grpc gRPC::grpc_unsecure gRPC::grpc++ gRPC::grpc++_alts gRPC::grpc++_error_details gRPC::grpc++_reflection
+#   gRPC::grpc++_unsecure gRPC::grpc_plugin_support gRPC::grpcpp_channelz gRPC::upb gRPC::grpc_cpp_plugin gRPC::grpc_csharp_plugin gRPC::grpc_node_plugin
+#   gRPC::grpc_objective_c_plugin gRPC::grpc_php_plugin gRPC::grpc_python_plugin gRPC::grpc_ruby_plugin
+#   BUILD_EXPORT_SET ${PROJECT_NAME}-core-exports
+#   INSTALL_EXPORT_SET ${PROJECT_NAME}-core-exports
+# )
+# rapids_cpm_find(gRPC 1.48.0
+#   GLOBAL_TARGETS
+#     gRPC::address_sorting gRPC::gpr gRPC::grpc gRPC::grpc_unsecure gRPC::grpc++ gRPC::grpc++_alts gRPC::grpc++_error_details gRPC::grpc++_reflection
+#     gRPC::grpc++_unsecure gRPC::grpc_plugin_support gRPC::grpcpp_channelz gRPC::upb gRPC::grpc_cpp_plugin gRPC::grpc_csharp_plugin gRPC::grpc_node_plugin
+#     gRPC::grpc_objective_c_plugin gRPC::grpc_php_plugin gRPC::grpc_python_plugin gRPC::grpc_ruby_plugin
+#   BUILD_EXPORT_SET
+#     ${PROJECT_NAME}-core-exports
+#   INSTALL_EXPORT_SET
+#     ${PROJECT_NAME}-core-exports
+#   CPM_ARGS
+#     GIT_REPOSITORY          https://github.com/grpc/grpc.git
+#     GIT_TAG                 v1.48.0
+#     GIT_SHALLOW             TRUE
+#     OPTIONS                 "BUILD_TESTING OFF"
+# )
+
+find_package(PkgConfig)
+
+pkg_check_modules(gRPC++ REQUIRED IMPORTED_TARGET GLOBAL grpc++ grpc gpr grpc++_unsecure grpc_unsecure)
+pkg_check_modules(gRPC REQUIRED IMPORTED_TARGET GLOBAL grpc)
+pkg_check_modules(gPR REQUIRED IMPORTED_TARGET GLOBAL gpr)
+
+morpheus_utils_print_all_targets()
+
+if (gRPC_FOUND)
+
+    # Add an alias to the imported target
+    add_library(gRPC::grpc++ ALIAS PkgConfig::gRPC++)
+    add_library(gRPC::grpc ALIAS PkgConfig::gRPC)
+    add_library(gRPC::gpr ALIAS PkgConfig::gPR)
+
+    # Now add it to the list of packages to install
+    rapids_export_package(INSTALL gRPC
+      ${PROJECT_NAME}-core-exports
+      GLOBAL_TARGETS gRPC::grpc gRPC::grpc gRPC::gpr
+    )
+
+    message(STATUS "gRPC++_VERSION: ${gRPC++_VERSION}")
+    message(STATUS "gRPC++_LIBRARIES: ${gRPC++_LIBRARIES}")
+    message(STATUS "gRPC++_grpc_LIBRARIES: ${gRPC++_grpc_LIBRARIES}")
+    message(STATUS "gRPC_VERSION: ${gRPC_VERSION}")
+    message(STATUS "gRPC_LIBRARIES: ${gRPC_LIBRARIES}")
+    message(STATUS "gPR_VERSION: ${gPR_VERSION}")
+    message(STATUS "gPR_LIBRARIES: ${gPR_LIBRARIES}")
+
+else()
+  message(FATAL_ERROR "gRPC not found")
+
+endif()
 
 # RxCpp
 # =====
