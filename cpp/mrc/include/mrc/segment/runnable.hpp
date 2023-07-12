@@ -19,11 +19,11 @@
 
 #include "mrc/runnable/launch_control.hpp"
 #include "mrc/runnable/launch_options.hpp"
-#include "mrc/runnable/launchable.hpp"
+#include "mrc/runnable/launchable.hpp"  // IWYU pragma: export
 #include "mrc/runnable/launcher.hpp"
 #include "mrc/runnable/runnable.hpp"
 #include "mrc/segment/context.hpp"
-#include "mrc/segment/object.hpp"
+#include "mrc/segment/object.hpp"  // IWYU pragma: export
 
 #include <glog/logging.h>
 

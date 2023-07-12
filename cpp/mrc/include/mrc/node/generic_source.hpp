@@ -25,9 +25,9 @@
 #include "mrc/core/watcher.hpp"
 #include "mrc/exceptions/runtime_error.hpp"
 #include "mrc/node/forward.hpp"
-#include "mrc/node/rx_source.hpp"
+#include "mrc/node/rx_source.hpp"  // IWYU pragma: export
 #include "mrc/node/rx_subscribable.hpp"
-#include "mrc/node/source_properties.hpp"
+#include "mrc/node/source_properties.hpp"  // IWYU pragma: export
 #include "mrc/utils/type_utils.hpp"
 
 #include <glog/logging.h>

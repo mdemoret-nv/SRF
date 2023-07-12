@@ -17,7 +17,7 @@
 
 #pragma once
 
-#include "mrc/segment/object.hpp"
+#include "mrc/segment/object.hpp"  // IWYU pragma: export
 
 #include <glog/logging.h>
 

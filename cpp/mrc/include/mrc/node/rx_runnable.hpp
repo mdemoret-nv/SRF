@@ -19,8 +19,8 @@
 
 #include "mrc/node/forward.hpp"
 #include "mrc/node/rx_execute.hpp"
-#include "mrc/node/rx_subscribable.hpp"
-#include "mrc/runnable/runnable.hpp"
+#include "mrc/node/rx_subscribable.hpp"  // IWYU pragma: export
+#include "mrc/runnable/runnable.hpp"     // IWYU pragma: export
 
 namespace mrc::node {
 

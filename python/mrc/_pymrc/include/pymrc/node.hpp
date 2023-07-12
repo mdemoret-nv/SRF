@@ -25,13 +25,12 @@
 #include "mrc/channel/ingress.hpp"
 #include "mrc/channel/status.hpp"
 #include "mrc/edge/edge_connector.hpp"
-#include "mrc/edge/edge_readable.hpp"
-#include "mrc/edge/edge_writable.hpp"
-#include "mrc/node/forward.hpp"  // IWYU pragma: keep
-#include "mrc/node/generic_source.hpp"
-#include "mrc/node/rx_node.hpp"
-#include "mrc/node/rx_sink.hpp"
-#include "mrc/node/rx_source.hpp"
+#include "mrc/edge/edge_readable.hpp"  // IWYU pragma: export
+#include "mrc/edge/edge_writable.hpp"  // IWYU pragma: export
+#include "mrc/node/forward.hpp"        // IWYU pragma: keep
+#include "mrc/node/rx_node.hpp"        // IWYU pragma: export
+#include "mrc/node/rx_sink.hpp"        // IWYU pragma: export
+#include "mrc/node/rx_source.hpp"      // IWYU pragma: export
 #include "mrc/runnable/context.hpp"
 
 #include <pybind11/cast.h>

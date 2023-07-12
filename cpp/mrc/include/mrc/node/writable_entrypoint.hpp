@@ -18,7 +18,8 @@
 #pragma once
 #include "mrc/channel/buffered_channel.hpp"
 #include "mrc/node/forward.hpp"
-#include "mrc/node/source_properties.hpp"
+#include "mrc/node/source_channel_owner.hpp"  // IWYU pragma: export
+#include "mrc/node/source_properties.hpp"     // IWYU pragma: export
 
 #include <type_traits>
 

@@ -26,7 +26,7 @@
 #include "mrc/exceptions/runtime_error.hpp"
 #include "mrc/node/forward.hpp"
 #include "mrc/node/generic_sink.hpp"
-#include "mrc/node/rx_node.hpp"
+#include "mrc/node/rx_node.hpp"  // IWYU pragma: export
 #include "mrc/node/sink_channel_owner.hpp"
 #include "mrc/utils/type_utils.hpp"
 

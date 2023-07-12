@@ -18,7 +18,7 @@
 #pragma once
 
 #include "mrc/segment/egress_port.hpp"
-#include "mrc/segment/ports.hpp"
+#include "mrc/segment/ports.hpp"  // IWYU pragma: export
 
 namespace mrc::segment {
 

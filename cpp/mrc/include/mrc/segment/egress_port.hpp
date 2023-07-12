@@ -18,20 +18,21 @@
 #pragma once
 
 #include "mrc/edge/edge_builder.hpp"
-#include "mrc/manifold/connectable.hpp"
+#include "mrc/manifold/connectable.hpp"  // IWYU pragma: export
 #include "mrc/manifold/factory.hpp"
 #include "mrc/manifold/interface.hpp"
 #include "mrc/node/forward.hpp"
 #include "mrc/node/generic_sink.hpp"
 #include "mrc/node/operators/muxer.hpp"
 #include "mrc/node/rx_node.hpp"
+#include "mrc/node/rx_sink_base.hpp"  // IWYU pragma: export
 #include "mrc/node/sink_channel_owner.hpp"
 #include "mrc/node/sink_properties.hpp"
 #include "mrc/node/source_channel_owner.hpp"
 #include "mrc/node/source_properties.hpp"
 #include "mrc/runnable/launch_options.hpp"
-#include "mrc/runnable/launchable.hpp"
-#include "mrc/segment/object.hpp"
+#include "mrc/runnable/launchable.hpp"  // IWYU pragma: export
+#include "mrc/segment/object.hpp"       // IWYU pragma: export
 
 #include <condition_variable>
 #include <memory>

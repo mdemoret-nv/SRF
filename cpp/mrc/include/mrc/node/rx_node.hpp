@@ -23,10 +23,11 @@
 #include "mrc/core/utils.hpp"
 #include "mrc/core/watcher.hpp"
 #include "mrc/exceptions/runtime_error.hpp"
-#include "mrc/node/rx_epilogue_tap.hpp"
-#include "mrc/node/rx_prologue_tap.hpp"
-#include "mrc/node/rx_sink_base.hpp"
-#include "mrc/node/rx_source_base.hpp"
+#include "mrc/node/rx_epilogue_tap.hpp"  // IWYU pragma: export
+#include "mrc/node/rx_prologue_tap.hpp"  // IWYU pragma: export
+#include "mrc/node/rx_runnable.hpp"      // IWYU pragma: export
+#include "mrc/node/rx_sink_base.hpp"     // IWYU pragma: export
+#include "mrc/node/rx_source_base.hpp"   // IWYU pragma: export
 #include "mrc/node/rx_subscribable.hpp"
 #include "mrc/utils/type_utils.hpp"
 

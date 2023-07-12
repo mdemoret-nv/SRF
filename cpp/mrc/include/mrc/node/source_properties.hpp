@@ -20,7 +20,7 @@
 #include "mrc/channel/ingress.hpp"
 #include "mrc/channel/status.hpp"  // IWYU pragma: export
 #include "mrc/edge/edge_builder.hpp"
-#include "mrc/edge/edge_writable.hpp"
+#include "mrc/edge/edge_writable.hpp"  // IWYU pragma: export
 #include "mrc/node/forward.hpp"
 #include "mrc/type_traits.hpp"
 #include "mrc/utils/type_utils.hpp"

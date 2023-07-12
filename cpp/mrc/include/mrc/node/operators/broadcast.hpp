@@ -20,9 +20,9 @@
 #include "mrc/channel/status.hpp"
 #include "mrc/edge/deferred_edge.hpp"
 #include "mrc/edge/edge_builder.hpp"
-#include "mrc/node/sink_properties.hpp"
+#include "mrc/node/sink_properties.hpp"  // IWYU pragma: export
 #include "mrc/node/source_channel_owner.hpp"
-#include "mrc/node/source_properties.hpp"
+#include "mrc/node/source_properties.hpp"  // IWYU pragma: export
 #include "mrc/type_traits.hpp"
 
 #include <memory>

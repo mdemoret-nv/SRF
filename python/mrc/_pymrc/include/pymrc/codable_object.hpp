@@ -21,10 +21,10 @@
 #include "pymrc/utilities/deserializers.hpp"
 #include "pymrc/utilities/serializers.hpp"
 
-#include "mrc/codable/codable_protocol.hpp"
-#include "mrc/codable/decode.hpp"
-#include "mrc/codable/encode.hpp"
-#include "mrc/codable/encoding_options.hpp"
+#include "mrc/codable/codable_protocol.hpp"  // IWYU pragma: export
+#include "mrc/codable/decode.hpp"            // IWYU pragma: export
+#include "mrc/codable/encode.hpp"            // IWYU pragma: export
+#include "mrc/codable/encoding_options.hpp"  // IWYU pragma: export
 #include "mrc/memory/memory_kind.hpp"
 
 #include <Python.h>

@@ -17,7 +17,7 @@
 
 #pragma once
 
-#include "mrc/node/operators/router.hpp"
+#include "mrc/node/operators/router.hpp"  // IWYU pragma: export
 
 namespace mrc::node {
 

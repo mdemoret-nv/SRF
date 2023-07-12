@@ -22,9 +22,10 @@
 #include "mrc/channel/status.hpp"
 #include "mrc/constants.hpp"
 #include "mrc/core/utils.hpp"
-#include "mrc/core/watcher.hpp"
+#include "mrc/core/watcher.hpp"  // IWYU pragma: export
 #include "mrc/exceptions/runtime_error.hpp"
-#include "mrc/node/source_channel_owner.hpp"
+#include "mrc/node/source_channel_owner.hpp"  // IWYU pragma: export
+#include "mrc/node/source_properties.hpp"     // IWYU pragma: export
 #include "mrc/runnable/context.hpp"
 #include "mrc/utils/type_utils.hpp"
 

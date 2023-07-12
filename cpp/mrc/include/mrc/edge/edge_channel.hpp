@@ -17,8 +17,8 @@
 
 #pragma once
 
-#include "mrc/edge/edge_readable.hpp"
-#include "mrc/edge/edge_writable.hpp"
+#include "mrc/edge/edge_readable.hpp"  // IWYU pragma: export
+#include "mrc/edge/edge_writable.hpp"  // IWYU pragma: export
 #include "mrc/edge/forward.hpp"
 
 #include <memory>

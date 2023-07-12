@@ -17,7 +17,7 @@
 
 #pragma once
 
-#include "mrc/node/operators/node_component.hpp"
+#include "mrc/node/operators/node_component.hpp"  // IWYU pragma: export
 #include "mrc/node/source_channel_owner.hpp"
 
 namespace mrc::node {

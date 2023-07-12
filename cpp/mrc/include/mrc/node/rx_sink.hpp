@@ -25,9 +25,9 @@
 #include "mrc/core/watcher.hpp"
 #include "mrc/exceptions/runtime_error.hpp"
 #include "mrc/node/forward.hpp"
-#include "mrc/node/rx_prologue_tap.hpp"
-#include "mrc/node/rx_runnable.hpp"
-#include "mrc/node/rx_sink_base.hpp"
+#include "mrc/node/rx_prologue_tap.hpp"  // IWYU pragma: export
+#include "mrc/node/rx_runnable.hpp"      // IWYU pragma: export
+#include "mrc/node/rx_sink_base.hpp"     // IWYU pragma: export
 #include "mrc/node/rx_subscribable.hpp"
 #include "mrc/node/sink_channel_owner.hpp"
 #include "mrc/utils/type_utils.hpp"

@@ -20,8 +20,8 @@
 #include "mrc/channel/buffered_channel.hpp"
 #include "mrc/edge/edge_channel.hpp"
 #include "mrc/node/forward.hpp"
-#include "mrc/node/sink_properties.hpp"
-#include "mrc/node/source_properties.hpp"
+#include "mrc/node/sink_properties.hpp"    // IWYU pragma: export
+#include "mrc/node/source_properties.hpp"  // IWYU pragma: export
 
 namespace mrc::node {
 
