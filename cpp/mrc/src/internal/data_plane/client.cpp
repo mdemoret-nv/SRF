@@ -71,25 +71,36 @@ Client::Client(resources::PartitionResourceBase& base,
 
 Client::~Client() = default;
 
+void Client::register_address(const InstanceID& instance_id, std::string worker_address)
+{
+    CHECK(!m_registered_addresses.contains(instance_id)) << "endpoint already exists for instance_id: " << instance_id;
+
+    DVLOG(10) << "Registering UCX worker address. instance_id: " << instance_id << ", address: " << worker_address;
+
+    m_registered_addresses[instance_id] = worker_address;
+}
+
 std::shared_ptr<ucx::Endpoint> Client::endpoint_shared(const InstanceID& id) const
 {
     auto search_endpoints = m_endpoints.find(id);
     if (search_endpoints == m_endpoints.end())
     {
-        const auto& workers = m_connnection_manager.worker_addresses();
-        auto search_workers = workers.find(id);
-        if (search_workers == workers.end())
+        // Create the endpoint lazily
+        auto found_address = m_registered_addresses.find(id);
+
+        if (found_address == m_registered_addresses.end())
         {
             LOG(ERROR) << "no endpoint or worker addresss was found for instance_id: " << id;
             throw std::runtime_error("could not acquire ucx endpoint");
         }
-        // lazy instantiation of the endpoint
-        DVLOG(10) << "creating endpoint to instance_id: " << id;
-        auto endpoint   = m_ucx.make_ep(search_workers->second);
-        m_endpoints[id] = endpoint;
-        return endpoint;
+
+        m_endpoints[id] = m_ucx.make_ep(found_address->second);
+
+        return m_endpoints[id];
     }
-    DCHECK(search_endpoints->second);
+
+    DCHECK(search_endpoints->second) << "Endpoint was null for instance_id: " << id << " - this should not happen";
+
     return search_endpoints->second;
 }
 

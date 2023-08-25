@@ -81,8 +81,6 @@ class Client final : public resources::PartitionResourceBase, private Service
            memory::TransientPool& transient_pool);
     ~Client() final;
 
-    std::shared_ptr<ucx::Endpoint> endpoint_shared(const InstanceID& instance_id) const;
-
     // drop endpoint
     void drop_endpoint(const InstanceID& instance_id);
 
@@ -132,6 +130,11 @@ class Client final : public resources::PartitionResourceBase, private Service
                               const ucx::Endpoint& endpoint,
                               Request& request);
 
+    // Registers a worker using an instance ID and worker address
+    void register_address(const InstanceID& instance_id, std::string worker_address);
+
+    std::shared_ptr<ucx::Endpoint> endpoint_shared(const InstanceID& instance_id) const;
+
     const ucx::Endpoint& endpoint(const InstanceID& instance_id) const;
 
   private:
@@ -146,6 +149,8 @@ class Client final : public resources::PartitionResourceBase, private Service
     ucx::UcxResources& m_ucx;
     control_plane::client::ConnectionsManager& m_connnection_manager;
     memory::TransientPool& m_transient_pool;
+
+    std::map<InstanceID, std::string> m_registered_addresses;
     mutable std::map<InstanceID, std::shared_ptr<ucx::Endpoint>> m_endpoints;
 
     std::unique_ptr<mrc::runnable::Runner> m_rd_writer;
