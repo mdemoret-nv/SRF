@@ -119,7 +119,7 @@ void ModuleRegistry::register_module(std::string name,
                                      mrc::modules::ModuleRegistry::module_constructor_t fn_constructor)
 {
     std::lock_guard<decltype(s_mutex)> lock(s_mutex);
-    VLOG(2) << "Registering module: " << registry_namespace << "::" << name;
+    // VLOG(2) << "Registering module: " << registry_namespace << "::" << name;
     if (!is_version_compatible(release_version))
     {
         std::stringstream sstream;
@@ -134,7 +134,7 @@ void ModuleRegistry::register_module(std::string name,
         s_module_namespace_registry[registry_namespace] = ModuleRegistry::module_registry_map_t{};
         s_module_name_map[registry_namespace]           = std::vector<std::string>();
 
-        VLOG(2) << "Creating namespace because it does not exist:  " << registry_namespace;
+        // VLOG(2) << "Creating namespace because it does not exist:  " << registry_namespace;
     }
 
     if (!contains(name, registry_namespace))
@@ -147,14 +147,14 @@ void ModuleRegistry::register_module(std::string name,
 
         std::sort(module_name_map.begin(), module_name_map.end());
 
-        VLOG(2) << "Registered module: " << registry_namespace << "::" << name << std::endl;
+        // VLOG(2) << "Registered module: " << registry_namespace << "::" << name << std::endl;
         return;
     }
 
     std::stringstream sstream;
 
     sstream << "Attempt to register duplicate module -> " << registry_namespace << ":" << name;
-    VLOG(2) << sstream.str();
+    // VLOG(2) << sstream.str();
     throw std::invalid_argument(sstream.str());
 }
 

@@ -21,7 +21,12 @@
 #include "pymrc/utilities/acquire_gil.hpp"
 #include "pymrc/utilities/function_wrappers.hpp"
 
+#include "mrc/runnable/context.hpp"
+
+#include <boost/fiber/fiber.hpp>
+#include <boost/fiber/operations.hpp>
 #include <glog/logging.h>
+#include <object.h>
 #include <pybind11/cast.h>
 #include <pybind11/functional.h>  // IWYU pragma: keep
 #include <pybind11/gil.h>
@@ -311,6 +316,104 @@ PythonOperator OperatorsProxy::to_list()
 
                         return {std::move(values)};
                     });
+            }};
+}
+
+PythonOperator OperatorsProxy::map_async(PyFuncHolder<pybind11::object(pybind11::object x)> map_fn)
+{
+    // Build and return the map operator
+    return {"map_async", [=](PyObjectObservable source) -> PyObjectObservable {
+                return source.map([=](PyHolder data_object) -> PyHolder {
+                    auto& context = mrc::runnable::Context::get_runtime_context();
+
+                    py::object coro_obj;
+                    {
+                        py::gil_scoped_acquire gil;
+
+                        // Call the map function, should return a coroutine object
+                        coro_obj = map_fn(std::move(data_object));
+
+                        if (!py::module::import("asyncio").attr("iscoroutine")(coro_obj).cast<bool>())
+                        {
+                            py::print("Not a coroutine object");
+                        }
+                    }
+
+                    // py::object loop;
+
+                    // try
+                    // {
+                    //     loop = py::module::import("asyncio").attr("get_event_loop")();
+                    // } catch (std::runtime_error ex)
+                    // {
+                    //     py::print("Creating loop from C++");
+
+                    //     loop = py::module::import("asyncio").attr("new_event_loop")();
+
+                    //     py::module::import("asyncio").attr("set_event_loop")(loop);
+                    // }
+
+                    while (true)
+                    {
+                        AcquireGIL gil;
+
+                        PyObject* result_raw = NULL;
+
+                        // auto send_py_obj = coro_obj.attr("send")(py::none());
+
+                        // Now call the coroutine using the iterator API
+                        auto send_ret = PyIter_Send(coro_obj.ptr(), Py_None, &result_raw);
+
+                        py::object result;
+
+                        if (result_raw != NULL)
+                        {
+                            result = py::reinterpret_steal<py::object>(result_raw);
+                        }
+
+                        if (send_ret == PYGEN_RETURN || send_ret == PYGEN_ERROR)
+                        {
+                            // py::print("Got PYGEN_RETURN or PYGEN_ERROR");
+
+                            if (result_raw != NULL)
+                            {
+                                // The error is StopIteration and that means that the underlying coroutine has resolved
+
+                                // py::print("Got non-NULL result");
+
+                                // auto result = py::reinterpret_steal<py::object>(result_raw);
+
+                                // Clear the coroutine object
+                                coro_obj = std::move(py::object());
+
+                                // Return the result
+                                return {std::move(result)};
+                            }
+
+                            py::print("Got NULL result, likely an error. Err: ");
+
+                            py::error_already_set err;
+
+                            py::print(err.what());
+
+                            // Rethrow python exceptions
+                            throw err;
+                        }
+
+                        // py::print("Got PYGEN_NEXT");
+
+                        if (!result.is_none())
+                        {
+                            py::print("Got non-None result with PYGEN_NEXT");
+                        }
+
+                        gil.release();
+
+                        // Yield the boost fiber and wait for the next call
+                        boost::this_fiber::yield();
+                        // boost::this_fiber::sleep_for(std::chrono::milliseconds(0));
+                    }
+                });
             }};
 }
 

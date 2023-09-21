@@ -64,6 +64,7 @@ class OperatorsProxy
     static PythonOperator on_completed(PyFuncHolder<std::optional<pybind11::object>()> finally_fn);
     static PythonOperator pairwise();
     static PythonOperator to_list();
+    static PythonOperator map_async(PyFuncHolder<pybind11::object(pybind11::object x)> map_fn);
 };
 
 #pragma GCC visibility pop

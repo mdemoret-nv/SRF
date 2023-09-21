@@ -13,9 +13,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import asyncio
+
 import pytest
 
 import mrc
+import mrc.core.executor
 from mrc.core import operators as ops
 
 
@@ -73,6 +76,8 @@ def run_segment(ex_runner):
             sink = seg.make_sink("sink", sink_on_next, sink_on_error, sink_on_completed)
             seg.make_edge(node, sink)
 
+            node.launch_options.engines_per_pe = 10
+
         ex_runner(segment_fn)
 
         assert did_complete, "Sink on_completed was not called"
@@ -104,13 +109,49 @@ def test_build(run_segment):
 
 def test_map(run_segment):
 
-    input_data = [0, 1, 2, 3, 4]
-    expected = [1, 2, 3, 4, 5]
+    input_data = list(range(0, 10))
+    expected = [x + 1 for x in input_data]
     actual = []
 
     def node_fn(input: mrc.Observable, output: mrc.Subscriber):
 
         input.pipe(ops.map(lambda x: x + 1)).subscribe(output)
+
+    actual, raised_error = run_segment(input_data, node_fn)
+
+    assert actual == expected
+
+
+def test_map_async(run_segment):
+
+    input_data = list(range(0, 10))
+    expected = [x + 1 for x in input_data]
+    actual = []
+
+    async def async_map_fn(x):
+
+        print(f"In async_map_fn {x}. Sleeping")
+
+        await mrc.core.executor.sleep(1000)
+
+        # try:
+        #     asyncio.get_running_loop()
+        # except RuntimeError:
+        #     print("No running loop. Making one")
+
+        #     loop = asyncio.new_event_loop()
+
+        #     asyncio.set_event_loop(loop)
+
+        # await asyncio.sleep(10)
+
+        print(f"Done sleeping {x}. Returning")
+
+        return x + 1
+
+    def node_fn(input: mrc.Observable, output: mrc.Subscriber):
+
+        input.pipe(ops.map_async(async_map_fn)).subscribe(output)
 
     actual, raised_error = run_segment(input_data, node_fn)
 

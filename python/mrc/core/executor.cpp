@@ -24,10 +24,12 @@
 #include "mrc/utils/string_utils.hpp"
 #include "mrc/version.hpp"
 
+#include <glog/logging.h>
 #include <pybind11/pybind11.h>
 #include <pybind11/pytypes.h>
 #include <pybind11/stl.h>  // IWYU pragma: keep
 
+#include <chrono>
 #include <memory>
 #include <sstream>
 #include <utility>  // for move
@@ -85,6 +87,26 @@ PYBIND11_MODULE(executor, py_mod)
         }))
         .def("result", &PyBoostFuture::py_result)
         .def("set_result", &PyBoostFuture::set_result);
+
+    py::class_<AwaitTime, std::shared_ptr<AwaitTime>>(py_mod, "AwaitTime")
+        .def(py::init<>())
+        .def("__iter__", &AwaitTime::iter)
+        .def("__await__", &AwaitTime::await)
+        .def("__next__", &AwaitTime::next);
+
+    py_mod.def("sleep", [](int milliseconds) {
+        // Future<py::object> py_fiber_future = boost::fibers::async([milliseconds]() -> py::object {
+        //     VLOG(10) << "Starting sleep for " << milliseconds << "ms";
+        //     boost::this_fiber::sleep_for(std::chrono::milliseconds(milliseconds));
+        //     VLOG(10) << "Starting sleep for " << milliseconds << "ms... done";
+
+        //     py::gil_scoped_acquire gil;
+
+        //     return py::none();
+        // });
+
+        return std::make_shared<AwaitTime>(std::chrono::steady_clock::now() + std::chrono::milliseconds(milliseconds));
+    });
 
     py_mod.attr("__version__") = MRC_CONCAT_STR(mrc_VERSION_MAJOR << "." << mrc_VERSION_MINOR << "."
                                                                   << mrc_VERSION_PATCH);

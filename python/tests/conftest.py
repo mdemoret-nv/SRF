@@ -44,7 +44,7 @@ def configure_tests_logging(is_debugger_attached: bool):
 
     from mrc.core import logging as mrc_logging
 
-    log_level = logging.WARN
+    log_level = logging.DEBUG
 
     # Check if a debugger is attached. If so, choose DEBUG for the logging level. Otherwise, only WARN
     if (is_debugger_attached):

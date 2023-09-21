@@ -59,6 +59,7 @@ PYBIND11_MODULE(operators, py_mod)
     py_mod.def("on_completed", &OperatorsProxy::on_completed);
     py_mod.def("pairwise", &OperatorsProxy::pairwise);
     py_mod.def("to_list", &OperatorsProxy::to_list);
+    py_mod.def("map_async", &OperatorsProxy::map_async);
 
     py_mod.attr("__version__") = MRC_CONCAT_STR(mrc_VERSION_MAJOR << "." << mrc_VERSION_MINOR << "."
                                                                   << mrc_VERSION_PATCH);

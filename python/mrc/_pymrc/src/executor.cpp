@@ -18,6 +18,8 @@
 #include "pymrc/executor.hpp"  // IWYU pragma: associated
 
 #include "pymrc/pipeline.hpp"
+#include "pymrc/types.hpp"
+#include "pymrc/utilities/acquire_gil.hpp"
 
 #include "mrc/pipeline/executor.hpp"
 #include "mrc/pipeline/pipeline.hpp"  // IWYU pragma: keep
@@ -28,6 +30,7 @@
 #include <boost/fiber/future/future.hpp>
 #include <boost/fiber/future/future_status.hpp>
 #include <glog/logging.h>
+#include <glog/vlog_is_on.h>
 #include <pybind11/cast.h>
 #include <pybind11/gil.h>
 #include <pybind11/pybind11.h>
@@ -141,12 +144,12 @@ std::function<void()> create_gil_finalizer()
 class StopIteration : public py::stop_iteration
 {
   public:
-    StopIteration(py::object&& result);
+    StopIteration(PyHolder&& result);
 
     void set_error() const override;  // override
 
   private:
-    py::object m_result;
+    PyHolder m_result;
 };
 
 class UniqueLockRelease
@@ -169,10 +172,16 @@ class UniqueLockRelease
 };
 
 /** Stop iteration impls -- move to own file **/
-StopIteration::StopIteration(py::object&& result) : stop_iteration("--"), m_result(std::move(result)){};
+StopIteration::StopIteration(PyHolder&& result) : stop_iteration("--"), m_result(std::move(result)){};
 void StopIteration::set_error() const
 {
+    auto has_gil = PyGILState_Check();
+
+    VLOG(10) << "Before PyErr_SetObject. Has GIL: " << has_gil;
+
     PyErr_SetObject(PyExc_StopIteration, this->m_result.ptr());
+
+    VLOG(10) << "After PyErr_SetObject. Has GIL: " << has_gil;
 }
 
 /** Awaitable impls -- move to own file **/
@@ -203,8 +212,52 @@ void Awaitable::next()
         // Grab the gil before moving and throwing
         py::gil_scoped_acquire gil;
 
+        // auto result_obj = std::move(this->m_future.get());
+
+        // PyErr_SetObject(PyExc_StopIteration, result_obj.ptr());
+
         // job done -> throw
         auto exception = StopIteration(std::move(this->m_future.get()));
+
+        // gil.release();
+
+        throw exception;
+    }
+}
+
+/** Awaitable impls -- move to own file **/
+AwaitTime::AwaitTime() = default;
+
+AwaitTime::AwaitTime(std::chrono::steady_clock::time_point done_time) : m_done_time(std::move(done_time)) {}
+
+std::shared_ptr<AwaitTime> AwaitTime::iter()
+{
+    return this->shared_from_this();
+}
+
+std::shared_ptr<AwaitTime> AwaitTime::await()
+{
+    return this->shared_from_this();
+}
+
+void AwaitTime::next()
+{
+    // Need to release the GIL before  waiting
+    py::gil_scoped_release nogil;
+
+    if (std::chrono::steady_clock::now() >= this->m_done_time)
+    {
+        // Grab the gil before moving and throwing
+        py::gil_scoped_acquire gil;
+
+        // auto result_obj = std::move(this->m_future.get());
+
+        // PyErr_SetObject(PyExc_StopIteration, result_obj.ptr());
+
+        // job done -> throw
+        auto exception = StopIteration(py::none());
+
+        // gil.release();
 
         throw exception;
     }

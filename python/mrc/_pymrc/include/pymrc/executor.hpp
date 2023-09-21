@@ -20,6 +20,7 @@
 
 #include <pybind11/pytypes.h>
 
+#include <chrono>
 #include <future>  // for future & promise
 #include <memory>
 
@@ -53,6 +54,23 @@ class Awaitable : public std::enable_shared_from_this<Awaitable>
 
   private:
     Future<pybind11::object> m_future;
+};
+
+class AwaitTime : public std::enable_shared_from_this<AwaitTime>
+{
+  public:
+    AwaitTime();
+
+    AwaitTime(std::chrono::steady_clock::time_point done_time);
+
+    std::shared_ptr<AwaitTime> iter();
+
+    std::shared_ptr<AwaitTime> await();
+
+    void next();
+
+  private:
+    std::chrono::steady_clock::time_point m_done_time;
 };
 
 class Executor
