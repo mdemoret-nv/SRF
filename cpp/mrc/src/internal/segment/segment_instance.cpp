@@ -28,7 +28,6 @@
 #include "mrc/core/task_queue.hpp"
 #include "mrc/exceptions/runtime_error.hpp"
 #include "mrc/manifold/interface.hpp"
-#include "mrc/runnable/launchable.hpp"
 #include "mrc/runnable/launcher.hpp"
 #include "mrc/runnable/runner.hpp"
 #include "mrc/segment/egress_port.hpp"

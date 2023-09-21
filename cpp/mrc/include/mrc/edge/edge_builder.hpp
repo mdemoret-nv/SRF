@@ -19,7 +19,6 @@
 
 #include "mrc/channel/status.hpp"
 #include "mrc/edge/deferred_edge.hpp"
-#include "mrc/edge/edge.hpp"
 #include "mrc/edge/edge_holder.hpp"
 #include "mrc/edge/edge_readable.hpp"
 #include "mrc/edge/edge_writable.hpp"
@@ -278,116 +277,13 @@ struct EdgeBuilder final
     static std::shared_ptr<ReadableEdgeHandle> do_adapt_egress(const EdgeTypeInfo& target_type,
                                                                std::shared_ptr<ReadableEdgeHandle> egress);
 };
+}  // namespace mrc::edge
+
+#include "mrc/edge/deferred_writable_multi_edge.hpp"
 
 template <typename T>
-class DeferredWritableMultiEdge : public MultiEdgeHolder<std::size_t, T>,
-                                  public IEdgeWritable<T>,
-                                  public DeferredWritableMultiEdgeBase
-{
-  public:
-    DeferredWritableMultiEdge(determine_indices_fn_t indices_fn = nullptr, bool deep_copy = false) :
-      m_indices_fn(std::move(indices_fn))
-    {
-        // // Generate warning if deep_copy = True but type does not support it
-        // if constexpr (!std::is_copy_constructible_v<T>)
-        // {
-        //     if (m_deep_copy)
-        //     {
-        //         LOG(WARNING) << "DeferredWritableMultiEdge(deep_copy=True) created for type '" << type_name<T>()
-        //                      << "' but the type is not copyable. Deep copy will be disabled";
-
-        //         m_deep_copy = false;
-        //     }
-        // }
-
-        // Set a connector to check that the indices function has been set
-        this->add_connector([this]() {
-            // Ensure that the indices function is properly set
-            CHECK(this->m_indices_fn) << "Must set indices function before connecting edge";
-        });
-    }
-
-    channel::Status await_write(T&& data) override
-    {
-        auto indices = this->determine_indices_for_value(data);
-
-        // First, handle the situation where there is more than one connection to push to
-        if constexpr (!std::is_copy_constructible_v<T>)
-        {
-            CHECK(indices.size() <= 1) << type_name<DeferredWritableMultiEdge<T>>()
-                                       << " is trying to write to multiple downstreams but the object type is not "
-                                          "copyable. Must use copyable type with multiple downstream connections";
-        }
-        else
-        {
-            for (size_t i = indices.size() - 1; i > 0; --i)
-            {
-                // if constexpr (is_shared_ptr<T>::value)
-                // {
-                //     if (m_deep_copy)
-                //     {
-                //         auto deep_copy = std::make_shared<typename T::element_type>(*data);
-                //         CHECK(this->get_writable_edge(indices[i])->await_write(std::move(deep_copy)) ==
-                //               channel::Status::success);
-                //         continue;
-                //     }
-                // }
-
-                T shallow_copy(data);
-                CHECK(this->get_writable_edge(indices[i])->await_write(std::move(shallow_copy)) ==
-                      channel::Status::success);
-            }
-        }
-
-        // Always push the last one the same way
-        if (indices.size() >= 1)
-        {
-            return this->get_writable_edge(indices[0])->await_write(std::move(data));
-        }
-
-        return channel::Status::success;
-    }
-
-    void set_indices_fn(determine_indices_fn_t indices_fn) override
-    {
-        m_indices_fn = std::move(indices_fn);
-    }
-
-    size_t edge_connection_count() const override
-    {
-        return MultiEdgeHolder<std::size_t, T>::edge_connection_count();
-    }
-    std::vector<std::size_t> edge_connection_keys() const override
-    {
-        return MultiEdgeHolder<std::size_t, T>::edge_connection_keys();
-    }
-
-  protected:
-    std::shared_ptr<IEdgeWritable<T>> get_writable_edge(std::size_t edge_idx) const
-    {
-        return std::dynamic_pointer_cast<IEdgeWritable<T>>(this->get_connected_edge(edge_idx));
-    }
-
-    virtual std::vector<std::size_t> determine_indices_for_value(const T& data)
-    {
-        return m_indices_fn(*this);
-    }
-
-  private:
-    void set_writable_edge_handle(std::size_t key, std::shared_ptr<WritableEdgeHandle> ingress) override
-    {
-        // Do any conversion to the correct type here
-        auto adapted_ingress = EdgeBuilder::adapt_writable_edge<T>(ingress);
-
-        MultiEdgeHolder<std::size_t, T>::make_edge_connection(key, adapted_ingress);
-    }
-
-    bool m_deep_copy{false};
-    determine_indices_fn_t m_indices_fn{};
-};
-
-template <typename T>
-std::shared_ptr<WritableEdgeHandle> EdgeBuilder::adapt_writable_edge(std::shared_ptr<WritableEdgeHandle> ingress)
+std::shared_ptr<mrc::edge::WritableEdgeHandle> mrc::edge::EdgeBuilder::adapt_writable_edge(
+    std::shared_ptr<WritableEdgeHandle> ingress)
 {
     // Check if the incoming handle object is dynamic
     if (ingress->is_deferred())
@@ -420,7 +316,8 @@ std::shared_ptr<WritableEdgeHandle> EdgeBuilder::adapt_writable_edge(std::shared
 }
 
 template <typename T>
-std::shared_ptr<ReadableEdgeHandle> EdgeBuilder::adapt_readable_edge(std::shared_ptr<ReadableEdgeHandle> egress)
+std::shared_ptr<mrc::edge::ReadableEdgeHandle> mrc::edge::EdgeBuilder::adapt_readable_edge(
+    std::shared_ptr<ReadableEdgeHandle> egress)
 {
     // // Check if the incoming handle object is dynamic
     // if (egress->is_deferred())
@@ -451,8 +348,6 @@ std::shared_ptr<ReadableEdgeHandle> EdgeBuilder::adapt_readable_edge(std::shared
     // Set to the source
     return adapted_egress;
 }
-
-}  // namespace mrc::edge
 
 // Put make edge in the mrc namespace since it is used so often
 namespace mrc {
@@ -517,14 +412,4 @@ void make_edge_typeless(SourceT& source, SinkT& sink)
     }
 }
 
-// template <typename SourceT,
-//           typename SinkT,
-//           typename = std::enable_if_t<is_base_of_template<IWritableAcceptor, SourceT>::value &&
-//                                       is_base_of_template<IWritableProvider, SinkT>::value>>
-// SinkT& operator|(SourceT& source, SinkT& sink)
-// {
-//     make_edge(source, sink);
-
-//     return sink;
-// }
 }  // namespace mrc

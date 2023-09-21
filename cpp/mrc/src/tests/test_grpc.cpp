@@ -27,7 +27,6 @@
 #include "internal/system/system.hpp"
 #include "internal/system/system_provider.hpp"
 
-#include "mrc/channel/status.hpp"
 #include "mrc/codable/codable_protocol.hpp"
 #include "mrc/core/task_queue.hpp"
 #include "mrc/node/generic_sink.hpp"

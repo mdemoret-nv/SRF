@@ -25,13 +25,15 @@
 #include "mrc/channel/ingress.hpp"
 #include "mrc/channel/status.hpp"
 #include "mrc/edge/edge_connector.hpp"
-#include "mrc/edge/edge_readable.hpp"  // IWYU pragma: export
-#include "mrc/edge/edge_writable.hpp"  // IWYU pragma: export
-#include "mrc/node/forward.hpp"        // IWYU pragma: keep
-#include "mrc/node/rx_node.hpp"        // IWYU pragma: export
-#include "mrc/node/rx_sink.hpp"        // IWYU pragma: export
-#include "mrc/node/rx_source.hpp"      // IWYU pragma: export
+#include "mrc/edge/edge_readable.hpp"   // IWYU pragma: export
+#include "mrc/edge/edge_writable.hpp"   // IWYU pragma: export
+#include "mrc/node/forward.hpp"         // IWYU pragma: keep
+#include "mrc/node/generic_source.hpp"  // IWYU pragma: export
+#include "mrc/node/rx_node.hpp"         // IWYU pragma: export
+#include "mrc/node/rx_sink.hpp"         // IWYU pragma: export
+#include "mrc/node/rx_source.hpp"       // IWYU pragma: export
 #include "mrc/runnable/context.hpp"
+#include "mrc/types.hpp"
 
 #include <pybind11/cast.h>
 #include <pybind11/gil.h>
@@ -402,6 +404,16 @@ class SegmentObjectProxy
 {
     // add name
 };
+
+// Define some classes that will 100% be instantiated
+extern template class PythonSink<pymrc::PyHolder>;
+extern template class PythonSinkComponent<pymrc::PyHolder>;
+
+extern template class PythonNode<pymrc::PyHolder, pymrc::PyHolder>;
+extern template class PythonNodeComponent<pymrc::PyHolder, pymrc::PyHolder>;
+
+extern template class PythonSource<pymrc::PyHolder>;
+extern template class PythonSourceComponent<pymrc::PyHolder>;
 
 #pragma GCC visibility pop
 

@@ -17,12 +17,9 @@
 
 #pragma once
 
-#include "mrc/channel/channel.hpp"
-#include "mrc/channel/egress.hpp"
-#include "mrc/channel/ingress.hpp"
-#include "mrc/edge/edge.hpp"  // IWYU pragma: export
-#include "mrc/exceptions/runtime_error.hpp"
-#include "mrc/node/forward.hpp"
+#include "mrc/channel/status.hpp"  // IWYU pragma: export
+#include "mrc/edge/edge.hpp"       // IWYU pragma: export
+#include "mrc/edge/forward.hpp"    // IWYU pragma: keep
 #include "mrc/type_traits.hpp"
 #include "mrc/utils/string_utils.hpp"
 
@@ -32,15 +29,10 @@
 #include <cstddef>
 #include <exception>
 #include <functional>
-#include <map>
 #include <memory>
-#include <mutex>
-#include <optional>
-#include <stdexcept>
 #include <type_traits>
 #include <typeindex>
 #include <utility>
-#include <vector>
 
 namespace mrc::edge {
 

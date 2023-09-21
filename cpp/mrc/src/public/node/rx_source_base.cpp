@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright (c) 2021-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * SPDX-FileCopyrightText: Copyright (c) 2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,16 +15,16 @@
  * limitations under the License.
  */
 
-#include "pymrc/node.hpp"
+#include "mrc/node/rx_source_base.hpp"
 
-namespace mrc::pymrc {
-// Explicit template instantiations
-template class PythonSink<pymrc::PyHolder>;
-template class PythonSinkComponent<pymrc::PyHolder>;
+namespace mrc::node {
 
-template class PythonNode<pymrc::PyHolder, pymrc::PyHolder>;
-template class PythonNodeComponent<pymrc::PyHolder, pymrc::PyHolder>;
+// Declare some explicit template instantiations for common types to speed up compilation
+template class RxSourceBase<void*>;
+template class RxSourceBase<bool>;
+template class RxSourceBase<int>;
+template class RxSourceBase<float>;
+template class RxSourceBase<double>;
+template class RxSourceBase<std::string>;
 
-template class PythonSource<pymrc::PyHolder>;
-template class PythonSourceComponent<pymrc::PyHolder>;
-}  // namespace mrc::pymrc
+}  // namespace mrc::node

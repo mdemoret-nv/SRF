@@ -32,7 +32,6 @@
 
 #include "mrc/channel/buffered_channel.hpp"
 #include "mrc/channel/channel.hpp"
-#include "mrc/channel/status.hpp"
 #include "mrc/codable/api.hpp"
 #include "mrc/codable/encoded_object.hpp"
 #include "mrc/edge/edge_builder.hpp"

@@ -23,7 +23,6 @@
 #include "mrc/node/rx_node.hpp"
 #include "mrc/node/rx_sink.hpp"
 #include "mrc/node/rx_source.hpp"
-#include "mrc/node/rx_source_base.hpp"
 #include "mrc/options/options.hpp"
 #include "mrc/options/topology.hpp"
 #include "mrc/pipeline/executor.hpp"
@@ -31,8 +30,6 @@
 #include "mrc/pipeline/segment.hpp"
 #include "mrc/segment/builder.hpp"
 #include "mrc/segment/ingress_port.hpp"
-#include "mrc/segment/object.hpp"
-#include "mrc/segment/ports.hpp"
 #include "mrc/types.hpp"
 
 #include <glog/logging.h>

@@ -21,18 +21,12 @@
 #include "mrc/channel/forward.hpp"
 #include "mrc/edge/edge_builder.hpp"
 #include "mrc/edge/edge_channel.hpp"
-#include "mrc/edge/edge_readable.hpp"
-#include "mrc/edge/edge_writable.hpp"
 #include "mrc/node/generic_source.hpp"
 #include "mrc/node/operators/broadcast.hpp"
 #include "mrc/node/operators/combine_latest.hpp"
 #include "mrc/node/operators/node_component.hpp"
 #include "mrc/node/operators/router.hpp"
 #include "mrc/node/rx_node.hpp"
-#include "mrc/node/sink_channel_owner.hpp"
-#include "mrc/node/sink_properties.hpp"
-#include "mrc/node/source_channel_owner.hpp"
-#include "mrc/node/source_properties.hpp"
 
 #include <glog/logging.h>
 #include <gtest/gtest.h>

@@ -250,4 +250,20 @@ class RxNodeComponent : public WritableProvider<InputT>, public WritableAcceptor
     rxcpp::subscription m_subject_subscription;
 };
 
+// Declare some explicit template instantiations for common types to speed up compilation
+extern template class RxNode<void*>;
+extern template class RxNode<bool>;
+extern template class RxNode<int>;
+extern template class RxNode<float>;
+extern template class RxNode<double>;
+extern template class RxNode<std::string>;
+
+// Declare some explicit template instantiations for common types to speed up compilation
+extern template class RxNodeComponent<void*>;
+extern template class RxNodeComponent<bool>;
+extern template class RxNodeComponent<int>;
+extern template class RxNodeComponent<float>;
+extern template class RxNodeComponent<double>;
+extern template class RxNodeComponent<std::string>;
+
 }  // namespace mrc::node

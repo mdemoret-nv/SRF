@@ -23,7 +23,6 @@
 #include "internal/runnable/runnable_resources.hpp"
 #include "internal/system/system.hpp"
 
-#include "mrc/channel/status.hpp"
 #include "mrc/edge/edge_builder.hpp"
 #include "mrc/node/rx_sink.hpp"
 #include "mrc/node/writable_entrypoint.hpp"

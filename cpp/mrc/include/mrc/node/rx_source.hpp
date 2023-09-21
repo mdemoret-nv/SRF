@@ -104,4 +104,12 @@ void RxSource<T, ContextT>::on_kill(const rxcpp::subscription& subscription)
     subscription.unsubscribe();
 }
 
+// Declare some explicit template instantiations for common types to speed up compilation
+extern template class RxSource<void*>;
+extern template class RxSource<bool>;
+extern template class RxSource<int>;
+extern template class RxSource<float>;
+extern template class RxSource<double>;
+extern template class RxSource<std::string>;
+
 }  // namespace mrc::node

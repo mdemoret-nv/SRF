@@ -60,6 +60,9 @@ class RxSource;
 template <typename InputT, typename OutputT = InputT, typename ContextT = runnable::Context>
 class RxNode;
 
+template <typename InputT, typename OutputT = InputT>
+class RxNodeComponent;
+
 class RxSubscribable;
 
 class RxExecute;

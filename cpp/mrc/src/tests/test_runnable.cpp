@@ -33,7 +33,6 @@
 #include "mrc/runnable/launch_control.hpp"
 #include "mrc/runnable/launch_options.hpp"
 #include "mrc/runnable/launcher.hpp"
-#include "mrc/runnable/runnable.hpp"
 #include "mrc/runnable/runner.hpp"
 #include "mrc/runnable/thread_context.hpp"
 #include "mrc/runnable/type_traits.hpp"

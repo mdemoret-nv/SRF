@@ -325,4 +325,20 @@ class MultiEdgeHolder
     // Allow edge builder to call set_edge
     friend EdgeBuilder;
 };
+
+// Declare some explicit template instantiations for common types to speed up compilation
+extern template class EdgeHolder<void*>;
+extern template class EdgeHolder<bool>;
+extern template class EdgeHolder<int>;
+extern template class EdgeHolder<float>;
+extern template class EdgeHolder<double>;
+extern template class EdgeHolder<std::string>;
+
+extern template class MultiEdgeHolder<size_t, void*>;
+extern template class MultiEdgeHolder<size_t, bool>;
+extern template class MultiEdgeHolder<size_t, int>;
+extern template class MultiEdgeHolder<size_t, float>;
+extern template class MultiEdgeHolder<size_t, double>;
+extern template class MultiEdgeHolder<size_t, std::string>;
+
 }  // namespace mrc::edge

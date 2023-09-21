@@ -20,10 +20,7 @@
 #include "mrc/channel/buffered_channel.hpp"
 #include "mrc/channel/channel.hpp"
 #include "mrc/channel/status.hpp"
-#include "mrc/constants.hpp"
-#include "mrc/core/utils.hpp"
-#include "mrc/core/watcher.hpp"  // IWYU pragma: export
-#include "mrc/exceptions/runtime_error.hpp"
+#include "mrc/core/watcher.hpp"               // IWYU pragma: export
 #include "mrc/node/source_channel_owner.hpp"  // IWYU pragma: export
 #include "mrc/node/source_properties.hpp"     // IWYU pragma: export
 #include "mrc/runnable/context.hpp"
@@ -102,5 +99,13 @@ void RxSourceBase<T>::source_remove_watcher(std::shared_ptr<WatcherInterface> wa
 {
     Watchable::remove_watcher(std::move(watcher));
 }
+
+// Declare some explicit template instantiations for common types to speed up compilation
+extern template class RxSourceBase<void*>;
+extern template class RxSourceBase<bool>;
+extern template class RxSourceBase<int>;
+extern template class RxSourceBase<float>;
+extern template class RxSourceBase<double>;
+extern template class RxSourceBase<std::string>;
 
 }  // namespace mrc::node

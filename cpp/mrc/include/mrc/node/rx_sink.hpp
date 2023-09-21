@@ -221,4 +221,19 @@ void RxSinkComponent<T>::set_observer(rxcpp::observer<T> observer)
     }
 }
 
+// Declare some explicit template instantiations for common types to speed up compilation
+extern template class RxSink<void*>;
+extern template class RxSink<bool>;
+extern template class RxSink<int>;
+extern template class RxSink<float>;
+extern template class RxSink<double>;
+extern template class RxSink<std::string>;
+
+extern template class RxSinkComponent<void*>;
+extern template class RxSinkComponent<bool>;
+extern template class RxSinkComponent<int>;
+extern template class RxSinkComponent<float>;
+extern template class RxSinkComponent<double>;
+extern template class RxSinkComponent<std::string>;
+
 }  // namespace mrc::node

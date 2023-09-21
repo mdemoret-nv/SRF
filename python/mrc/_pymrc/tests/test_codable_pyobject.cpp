@@ -22,7 +22,6 @@
 #include "pymrc/codable_object.hpp"  // IWYU pragma: keep
 #include "pymrc/types.hpp"
 
-#include "mrc/codable/codable_protocol.hpp"
 #include "mrc/codable/type_traits.hpp"
 
 #include <gtest/gtest.h>

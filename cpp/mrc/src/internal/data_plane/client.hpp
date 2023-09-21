@@ -33,10 +33,6 @@
 #include <memory>
 #include <string>
 
-namespace mrc::node {
-template <typename T>
-class WritableProvider;
-}  // namespace mrc::node
 namespace mrc::control_plane::client {
 class ConnectionsManager;
 }  // namespace mrc::control_plane::client

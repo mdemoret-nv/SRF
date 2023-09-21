@@ -17,6 +17,7 @@
 
 #include "mrc/edge/edge_builder.hpp"
 
+#include "mrc/edge/edge.hpp"
 #include "mrc/edge/edge_adapter_registry.hpp"
 #include "mrc/exceptions//runtime_error.hpp"
 #include "mrc/utils/string_utils.hpp"

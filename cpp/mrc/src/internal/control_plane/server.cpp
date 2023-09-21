@@ -22,7 +22,6 @@
 #include "internal/grpc/stream_writer.hpp"
 #include "internal/runnable/runnable_resources.hpp"
 
-#include "mrc/channel/status.hpp"
 #include "mrc/edge/edge_builder.hpp"
 #include "mrc/node/queue.hpp"
 #include "mrc/node/rx_sink.hpp"

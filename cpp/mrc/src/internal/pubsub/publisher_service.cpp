@@ -26,7 +26,6 @@
 #include "internal/runnable/runnable_resources.hpp"
 #include "internal/runtime/partition.hpp"
 
-#include "mrc/channel/status.hpp"
 #include "mrc/codable/encoded_object.hpp"
 #include "mrc/core/utils.hpp"
 #include "mrc/edge/edge_builder.hpp"

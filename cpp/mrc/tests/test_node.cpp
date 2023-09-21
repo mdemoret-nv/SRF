@@ -17,7 +17,6 @@
 
 #include "test_mrc.hpp"
 
-#include "mrc/channel/status.hpp"  // for Status
 #include "mrc/node/rx_node.hpp"
 #include "mrc/node/rx_sink.hpp"
 #include "mrc/node/rx_source.hpp"

@@ -21,7 +21,6 @@
 #include "mrc/memory/literals.hpp"
 #include "mrc/node/generic_source.hpp"
 #include "mrc/node/rx_sink.hpp"
-#include "mrc/node/rx_source.hpp"
 #include "mrc/utils/macros.hpp"
 
 #include <glog/logging.h>
