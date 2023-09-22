@@ -28,8 +28,12 @@ class Context : public ContextT
 {
   public:
     template <typename... ArgsT>
-    Context(std::size_t rank, std::size_t size, std::string name, ArgsT&&... args) :
-      ContextT(std::move(rank), std::move(size), std::forward<ArgsT>(args)...),
+    Context(const Runner& runner,
+            std::size_t rank,
+            std::shared_ptr<runnable::IEngine> engine,
+            std::string name,
+            ArgsT&&... args) :
+      ContextT(runner, std::move(rank), std::move(engine), std::forward<ArgsT>(args)...),
       m_name(std::move(name))
     {
         static_assert(std::is_base_of_v<runnable::Context, ContextT>, "ContextT must derive from Context");

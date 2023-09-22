@@ -54,6 +54,7 @@ class IEngine
     virtual Future<void> launch_task(std::function<void()> task) = 0;
 
     friend Runner;
+    friend class Context;
 };
 
 /**

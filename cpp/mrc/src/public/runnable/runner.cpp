@@ -105,7 +105,7 @@ void Runner::enqueue(std::shared_ptr<IEngines> launcher, std::vector<std::shared
             m_instances[i].m_uid         = contexts[i]->rank();
             m_instances[i].m_live_future = m_instances[i].m_live_promise.get_future().share();
             m_instances[i].m_context     = contexts[i];
-            m_instances[i].m_engine      = launcher->launchers()[i];
+            // m_instances[i].m_engine      = launcher->launchers()[i];
             update_state(contexts[i]->rank(), State::Queued);
         }
 
@@ -129,17 +129,27 @@ void Runner::enqueue(std::shared_ptr<IEngines> launcher, std::vector<std::shared
         auto context = instance.m_context;
         auto engine  = instance.m_engine;
 
-        auto f = engine->launch_task([this, context, &instance] {
-            context->init(*this);
-            update_state(context->rank(), State::Running);
+        auto f = context->launch_task([this, context, &instance] {
+            // Set the context to be started
+            context->start();
+            this->update_state(context->rank(), State::Running);
             instance.m_live_promise.set_value();
+
+            // Run the main function
             m_runnable->main(*context);
+
             if (!context->status())
             {
                 update_state(context->rank(), State::Error);
             }
-            update_state(context->rank(), State::Completed);
+
+            // Set the context to be completed
+            this->update_state(context->rank(), State::Completed);
+
+            // Determine the final status
             m_status = m_status && context->status();
+
+            // If we are launching the last one, set the completion callback
             if (--m_remaining_instances == 0)
             {
                 if (m_completion_callback)
@@ -147,6 +157,8 @@ void Runner::enqueue(std::shared_ptr<IEngines> launcher, std::vector<std::shared
                     m_completion_callback(m_status);
                 }
             }
+
+            // This rethrows if an exception was caught
             context->finish();
         });
 

@@ -17,10 +17,13 @@
 
 #pragma once
 
+#include "mrc/runnable/engine.hpp"
+
 #include <glog/logging.h>
 
 #include <cstddef>
 #include <exception>
+#include <memory>
 #include <sstream>
 #include <string>
 
@@ -41,7 +44,7 @@ class Context
 {
   public:
     Context() = delete;
-    Context(std::size_t rank, std::size_t size);
+    Context(const Runner& runner, std::size_t rank, std::shared_ptr<IEngine> engine);
     virtual ~Context() = default;
 
     EngineType execution_context() const;
@@ -56,6 +59,8 @@ class Context
 
     const std::string& info() const;
 
+    Future<void> launch_task(std::function<void()> task);
+
     template <typename ContextT>
     ContextT& as()
     {
@@ -69,17 +74,19 @@ class Context
     void set_exception(std::exception_ptr exception_ptr);
 
   protected:
-    void init(const Runner& runner);
+    void start();
     bool status() const;
     void finish();
     virtual void init_info(std::stringstream& ss);
 
   private:
+    const Runner& m_runner;
+
     std::size_t m_rank;
     std::size_t m_size;
+    std::shared_ptr<IEngine> m_engine;
     std::string m_info{"Uninitialized Context"};
     std::exception_ptr m_exception_ptr{nullptr};
-    const Runner* m_runner{nullptr};
 
     virtual void do_lock()                          = 0;
     virtual void do_unlock()                        = 0;

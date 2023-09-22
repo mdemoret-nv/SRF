@@ -47,7 +47,11 @@ struct FiberLocalContext
 
 }  // namespace
 
-Context::Context(std::size_t rank, std::size_t size) : m_rank(rank), m_size(size) {}
+Context::Context(const Runner& runner, std::size_t rank, std::shared_ptr<IEngine> engine) :
+  m_runner(runner),
+  m_rank(rank),
+  m_engine(std::move(engine))
+{}
 
 EngineType Context::execution_context() const
 {
@@ -61,7 +65,7 @@ std::size_t Context::rank() const
 
 std::size_t Context::size() const
 {
-    return m_size;
+    return m_runner.instances().size();
 }
 
 void Context::lock()
@@ -93,17 +97,28 @@ void Context::yield()
     do_yield();
 }
 
-void Context::init(const Runner& runner)
+Future<void> Context::launch_task(std::function<void()> task)
 {
-    auto& fiber_local = FiberLocalContext::get();
-    fiber_local.reset(new FiberLocalContext());
-    fiber_local->m_context = this;
+    return m_engine->launch_task([this, task = std::move(task)]() {
+        auto& fiber_local = FiberLocalContext::get();
+        fiber_local.reset(new FiberLocalContext());
+        fiber_local->m_context = this;
 
+        try
+        {
+            task();
+        } catch (...)
+        {
+            set_exception(std::current_exception());
+        }
+    });
+}
+
+void Context::start()
+{
     std::stringstream ss;
     this->init_info(ss);
     m_info = ss.str();
-
-    m_runner = &runner;
 }
 
 void Context::finish()
@@ -127,7 +142,7 @@ void Context::set_exception(std::exception_ptr exception_ptr)
         if (m_exception_ptr == nullptr)
         {
             m_exception_ptr = std::move(std::current_exception());
-            m_runner->kill();
+            m_runner.kill();
         }
     }
 }
