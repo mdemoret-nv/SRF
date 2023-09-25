@@ -28,7 +28,7 @@ class Context : public ContextT
 {
   public:
     template <typename... ArgsT>
-    Context(const Runner& runner,
+    Context(const runnable::Runner& runner,
             std::size_t rank,
             std::shared_ptr<runnable::IEngine> engine,
             std::string name,

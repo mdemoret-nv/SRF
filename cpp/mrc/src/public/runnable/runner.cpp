@@ -105,7 +105,7 @@ void Runner::enqueue(std::shared_ptr<IEngines> launcher, std::vector<std::shared
             m_instances[i].m_uid         = contexts[i]->rank();
             m_instances[i].m_live_future = m_instances[i].m_live_promise.get_future().share();
             m_instances[i].m_context     = contexts[i];
-            // m_instances[i].m_engine      = launcher->launchers()[i];
+            m_instances[i].m_engine      = launcher->launchers()[i];
             update_state(contexts[i]->rank(), State::Queued);
         }
 

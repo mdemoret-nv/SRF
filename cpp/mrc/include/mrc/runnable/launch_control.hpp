@@ -103,6 +103,9 @@ class LaunchControl final
         // engines are out way of running some task on the specified backend
         std::shared_ptr<IEngines> engines = build_engines(options);
 
+        // create runner
+        auto runner = runnable::make_runner(std::move(runnable));
+
         // make contexts
         std::vector<std::shared_ptr<Context>> contexts;
         if constexpr (is_fiber_runnable_v<RunnableT>)
@@ -113,6 +116,7 @@ class LaunchControl final
                                                                                                      "ThreadEngine";
 
             contexts = make_contexts<FiberContext<ContextWrapperT<context_t>>>(
+                *runner,
                 *engines,
                 std::forward<ContextArgsT>(context_args)...);
         }
@@ -123,6 +127,7 @@ class LaunchControl final
                                                                                                       "to be run on a "
                                                                                                       "FiberEngine";
             contexts = make_contexts<ThreadContext<ContextWrapperT<context_t>>>(
+                *runner,
                 *engines,
                 std::forward<ContextArgsT>(context_args)...);
         }
@@ -132,12 +137,14 @@ class LaunchControl final
             if (backend == EngineType::Fiber)
             {
                 contexts = make_contexts<FiberContext<ContextWrapperT<context_t>>>(
+                    *runner,
                     *engines,
                     std::forward<ContextArgsT>(context_args)...);
             }
             else if (backend == EngineType::Thread)
             {
                 contexts = make_contexts<ThreadContext<ContextWrapperT<context_t>>>(
+                    *runner,
                     *engines,
                     std::forward<ContextArgsT>(context_args)...);
             }
@@ -146,9 +153,6 @@ class LaunchControl final
                 LOG(FATAL) << "Unsupported EngineType";
             }
         }
-
-        // create runner
-        auto runner = runnable::make_runner(std::move(runnable));
 
         // construct the launcher
         return std::make_unique<Launcher>(std::move(runner), std::move(contexts), std::move(engines));
