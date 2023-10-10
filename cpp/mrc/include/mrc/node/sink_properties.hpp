@@ -19,6 +19,7 @@
 
 #include "mrc/channel/status.hpp"  // IWYU pragma: export
 #include "mrc/edge/edge_builder.hpp"
+#include "mrc/edge/edge_holder.hpp"
 #include "mrc/edge/edge_readable.hpp"
 #include "mrc/node/forward.hpp"
 #include "mrc/type_traits.hpp"

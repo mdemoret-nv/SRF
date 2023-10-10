@@ -43,6 +43,9 @@ class CompositeManifold : public Manifold
                 m_ingress = std::make_unique<IngressT>();
                 m_egress  = std::make_unique<EgressT>();
 
+                m_ingress->set_name(this->port_name() + " ingress");
+                m_egress->set_name(this->port_name() + " ingress");
+
                 // Then link them together
                 mrc::make_edge(*m_ingress, *m_egress);
             })

@@ -43,6 +43,8 @@
 
 namespace mrc::edge {
 
+class EdgeHolderBase;
+
 class EdgeLifetime
 {
   public:
@@ -169,12 +171,26 @@ class EdgeBase
     }
 
   private:
+    void set_owning_holder(EdgeHolderBase* owning_holder)
+    {
+        m_owning_holder = owning_holder;
+    }
+
+    void set_lifetime_holder(EdgeHolderBase* lifetime_holder)
+    {
+        m_lifetime_holder = lifetime_holder;
+    }
+
     bool m_is_connected{false};
     std::vector<EdgeLifetime> m_connectors;
     std::vector<EdgeLifetime> m_disconnectors;
     std::vector<std::shared_ptr<EdgeBase>> m_linked_edges;
 
+    EdgeHolderBase* m_owning_holder{nullptr};
+    EdgeHolderBase* m_lifetime_holder{nullptr};
+
     // Friend any type of edge handle to allow calling connect
+    friend class EdgeHolderBase;
     template <typename>
     friend class Edge;
 };
@@ -189,6 +205,7 @@ class Edge : public virtual EdgeBase
 {
   public:
     // Friend the holder classes which are required to setup connections
+    friend class EdgeHolderBase;
     template <typename>
     friend class EdgeHolder;
     template <typename, typename>

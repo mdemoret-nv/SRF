@@ -22,6 +22,7 @@
 #include "mrc/channel/channel.hpp"
 #include "mrc/channel/egress.hpp"
 #include "mrc/channel/ingress.hpp"
+#include "mrc/edge/edge_holder_base.hpp"
 #include "mrc/edge/forward.hpp"
 #include "mrc/exceptions/runtime_error.hpp"
 #include "mrc/type_traits.hpp"
@@ -47,27 +48,34 @@ namespace mrc::edge {
 
 // EdgeHolder keeps shared pointer of EdgeChannel alive and
 template <typename T>
-class EdgeHolder
+class EdgeHolder : public virtual EdgeHolderBase
 {
   public:
-    EdgeHolder() = default;
+    using EdgeHolderBase::EdgeHolderBase;
+
     virtual ~EdgeHolder()
     {
         // Drop any edge connections before this object goes out of scope. This should execute any disconnectors
-        m_connected_edge.reset();
+        // m_connected_edge.reset();
+        this->set_connected_edge(nullptr);
 
         if (this->check_active_connection(false))
         {
+            auto lifetime_leafs = EdgeHolderBase::walk_lifetime_edges(this);
+
             LOG(FATAL) << "A node was destructed which still had dependent connections. Nodes must be kept alive while "
                           "dependent connections are still active";
         }
+
+        // Drop any owned edges too to erase the pointers
+        this->set_owned_edge(nullptr);
     }
 
   protected:
     bool check_active_connection(bool do_throw = true) const
     {
         // Alive connection exists when the lock is true, lifetime is false or a connction object has been set
-        if (m_owned_edge.lock() && !m_owned_edge_lifetime)
+        if (m_owned_edge.has_value() && m_owned_edge->lock() && !m_owned_edge_lifetime)
         {
             // Then someone is using this edge already, cant be changed
             if (do_throw)
@@ -97,23 +105,31 @@ class EdgeHolder
         // Check for active connections
         this->check_active_connection();
 
+        EdgeBase* edge_ptr = edge.get();
+
         // Register a connector to run when edge is connected
-        edge->add_connector([this]() {
+        edge->add_connector([this, edge_ptr]() {
+            this->add_owned_edge(edge_ptr);
+
             // Drop the object keeping the weak_edge alive
             this->m_owned_edge_lifetime.reset();
         });
 
         // Now register a disconnector to keep clean everything up. Only runs if connected
-        edge->add_disconnector([this]() {
+        edge->add_disconnector([this, edge_ptr]() {
+            this->remove_owned_edge(edge_ptr);
+
             this->m_owned_edge_lifetime.reset();
-            this->m_owned_edge.reset();
+            // this->m_owned_edge.reset();
+            this->set_owned_edge(nullptr);
         });
 
         // Set to the temp edge to ensure its alive until get_edge is called
         m_owned_edge_lifetime = edge;
 
         // Set to the weak ptr as well
-        m_owned_edge = edge;
+        // m_owned_edge = edge;
+        this->set_owned_edge(edge);
     }
 
     void init_connected_edge(std::shared_ptr<Edge<T>> edge)
@@ -121,17 +137,23 @@ class EdgeHolder
         // Check for active connections
         this->check_active_connection();
 
-        m_connected_edge = edge;
+        // m_connected_edge = edge;
+        this->set_connected_edge(edge);
     }
 
     std::shared_ptr<EdgeHandle> get_edge_connection() const
     {
-        if (auto edge = m_owned_edge.lock())
+        if (!m_owned_edge.has_value())
+        {
+            throw std::runtime_error("Must set an edge before calling get_edge");
+        }
+
+        if (auto edge = m_owned_edge->lock())
         {
             return std::shared_ptr<EdgeHandle>(new EdgeHandle(EdgeTypeInfo::create<T>(), edge));
         }
 
-        throw std::runtime_error("Must set an edge before calling get_edge");
+        throw std::runtime_error("The owned edge has expired. This should not happen!");
     }
 
     void make_edge_connection(std::shared_ptr<EdgeHandle> edge_obj)
@@ -152,7 +174,8 @@ class EdgeHolder
 
     void release_edge_connection()
     {
-        m_connected_edge.reset();
+        // m_connected_edge.reset();
+        this->set_connected_edge(nullptr);
     }
 
     const std::shared_ptr<Edge<T>>& get_connected_edge() const
@@ -167,10 +190,12 @@ class EdgeHolder
         this->check_active_connection();
 
         // Set to the temp edge to ensure its alive until get_edge is called
-        m_connected_edge = edge;
+        // m_connected_edge = edge;
+        this->set_connected_edge(edge);
 
         // Reset the weak_ptr since we dont own this edge
-        m_owned_edge.reset();
+        // m_owned_edge.reset();
+        this->set_owned_edge(nullptr);
 
         // Remove any init lifetime
         m_owned_edge_lifetime.reset();
@@ -179,8 +204,45 @@ class EdgeHolder
         edge->connect();
     }
 
+    void set_connected_edge(std::shared_ptr<Edge<T>> edge)
+    {
+        if (m_connected_edge)
+        {
+            this->remove_connected_edge(m_connected_edge);
+        }
+
+        m_connected_edge = edge;
+
+        if (edge)
+        {
+            this->add_connected_edge(m_connected_edge);
+        }
+    }
+
+    void set_owned_edge(std::shared_ptr<Edge<T>> edge)
+    {
+        // if (m_owned_edge.has_value())
+        // {
+        //     if (auto old_edge = m_owned_edge.value().lock())
+        //     {
+        //         this->remove_owned_edge(old_edge.get());
+        //     }
+        //     else
+        //     {
+        //         LOG(WARNING) << "Could not lock owned edge. Should not happen!";
+        //     }
+        // }
+
+        m_owned_edge = edge;
+
+        // if (edge)
+        // {
+        //     this->add_owned_edge(edge.get());
+        // }
+    }
+
     // Used for retrieving the current edge without altering its lifetime
-    std::weak_ptr<Edge<T>> m_owned_edge;
+    std::optional<std::weak_ptr<Edge<T>>> m_owned_edge;
 
     // This object ensures that any initialized edge is kept alive and is cleared on connection
     std::shared_ptr<Edge<T>> m_owned_edge_lifetime;
@@ -196,8 +258,18 @@ class EdgeHolder
     friend class MultiEdgeHolder;
 };
 
+// template <typename T>
+// class FullEdgeHolder : public EdgeHolder<T>
+// {
+//   public:
+//     FullEdgeHolder() : EdgeHolder<T>(m_state) {}
+
+//   private:
+//     EdgeHolderBaseState m_state;
+// };
+
 template <typename KeyT, typename T>
-class MultiEdgeHolder
+class MultiEdgeHolder : public virtual EdgeHolderBase
 {
   public:
     MultiEdgeHolder()          = default;
@@ -276,7 +348,7 @@ class MultiEdgeHolder
         {
             if (create_if_missing)
             {
-                m_edges[key] = EdgeHolder<T>();
+                m_edges[key] = EdgeHolder<T>(this->get_state());
                 return m_edges[key];
             }
 
