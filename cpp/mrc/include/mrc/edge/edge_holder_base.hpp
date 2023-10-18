@@ -119,10 +119,10 @@ class EdgeHolderBase
         for (const auto* edge : current->m_state->m_owned_edges)
         {
             // For this edge, see if we have any linked edges
-            edge->m_linked_edges[0].
+            // edge->m_linked_edges[0].
 
-                // Now get the lifetime holder
-                auto* lifetime_holder = edge->m_lifetime_holder;
+            // Now get the lifetime holder
+            auto* lifetime_holder = edge->m_lifetime_holder;
 
             if (lifetime_holder == nullptr)
             {
