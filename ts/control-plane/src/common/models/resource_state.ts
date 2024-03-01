@@ -1,10 +1,15 @@
 import { IResourceState } from "@mrc/common/entities";
-import { ResourceActualStatus, ResourceRequestedStatus } from "@mrc/proto/mrc/protos/architect_state";
+import {
+   ResourceActualStatus,
+   ResourceDefinition,
+   ResourceRequestedStatus,
+} from "@mrc/proto/mrc/protos/architect_state";
 
 export class ResourceState implements IResourceState {
    // requestedStatus: ResourceRequestedStatus = ResourceRequestedStatus.Requested_Initialized;
    // actualStatus: ResourceActualStatus = ResourceActualStatus.Actual_Unknown;
    // refCount = 0;
+   // dependees = []
 
    private _interface: IResourceState;
 
@@ -21,7 +26,11 @@ export class ResourceState implements IResourceState {
    }
 
    public get refCount(): number {
-      return this._interface.refCount;
+      return this._interface.dependees.length;
+   }
+
+   public get dependees(): ResourceDefinition[] {
+      return this._interface.dependees;
    }
 
    public get_interface() {
@@ -33,6 +42,7 @@ export class ResourceState implements IResourceState {
          requestedStatus: ResourceRequestedStatus.Requested_Initialized,
          actualStatus: ResourceActualStatus.Actual_Unknown,
          refCount: 0,
+         dependees: [],
       });
    }
 }

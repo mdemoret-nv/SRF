@@ -6,6 +6,7 @@ import { IManifoldDefinition, IManifoldInstance, ISegmentInstance } from "@mrc/c
 import {
    ResourceActualStatus,
    resourceActualStatusToNumber,
+   ResourceDefinition,
    resourceRequestedStatusToNumber,
 } from "@mrc/proto/mrc/protos/architect_state";
 import { ResourceRequestedStatus } from "@mrc/proto/mrc/protos/architect_state";
@@ -13,12 +14,9 @@ import { pipelineDefinitionsSelectById } from "@mrc/server/store/slices/pipeline
 import {
    segmentInstanceIncRefCount,
    segmentInstanceDecRefCount,
-   segmentInstancesSelectById,
    segmentInstancesSelectByNameAndPipelineDef,
-   segmentInstancesSelectAll,
    segmentInstancesSelectByAddress,
 } from "@mrc/server/store/slices/segmentInstancesSlice";
-import { startAppListening } from "@mrc/server/store/listener_middleware";
 import { createWatcher } from "@mrc/server/store/resourceStateWatcher";
 import { createWrappedEntityAdapter } from "@mrc/server/utils";
 import { AppDispatch, RootState, AppGetState } from "@mrc/server/store/store";
@@ -448,7 +446,12 @@ function manifoldInstanceUpdateActualSegment(
       );
 
       // Increment the ref count of the segment [{"type": "ManifoldInstance", "id": "id"}]
-      dispatch(segmentInstanceIncRefCount({ segment: segment }));
+      dispatch(
+         segmentInstanceIncRefCount({
+            segment: segment,
+            resource: { resourceType: "ManifoldInstance", resourceId: manifold.id } as ResourceDefinition,
+         })
+      );
    } else {
       // One of two cases:
       //   1) Server asked the client to remove the segment and they did in which, and now we need to remove it from the actual
@@ -461,7 +464,12 @@ function manifoldInstanceUpdateActualSegment(
                segment: segment,
             })
          );
-         dispatch(segmentInstanceDecRefCount({ segment: segment }));
+         dispatch(
+            segmentInstanceDecRefCount({
+               segment: segment,
+               resource: { resourceType: "ManifoldInstance", resourceId: manifold.id } as ResourceDefinition,
+            })
+         );
       } else {
          throw new Error(`Actual segment ${segmentAddress} does not match an attached segment`);
       }

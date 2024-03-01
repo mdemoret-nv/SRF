@@ -79,6 +79,11 @@ enum ResourceActualStatus
    Actual_Destroyed = 9;
 }
 
+message ResourceDefinition {
+   string resource_type = 1;
+   uint64 resource_id = 2;
+}
+
 message ResourceState {
    // // Current status of the resource
    // ResourceStatus status = 1;
@@ -91,6 +96,9 @@ message ResourceState {
 
    // Number of users besides the owner of this resource
    int32 ref_count = 4;
+
+   // Dependees of the Resource
+   repeated ResourceDefinition dependees = 5;
 }
 
 message Executor {
