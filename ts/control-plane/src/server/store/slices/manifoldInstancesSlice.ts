@@ -351,10 +351,10 @@ function ensureOneLocal(dispatch: AppDispatch, state: RootState, manifold: IMani
       const requestedInvMap = isInput ? manifold.requestedOutputSegments : manifold.requestedInputSegments;
       const requestedInvRemotes: [string, boolean][] = filterMappingByLocality(requestedInvMap, false);
 
-      requestedInvRemotes.forEach(([segId, _]) => {
-         const seg = segmentInstancesSelectById(state, segId);
+      requestedInvRemotes.forEach(([segAddres, _]) => {
+         const seg = segmentInstancesSelectByAddress(state, segAddres);
          if (!seg) {
-            throw new Error(`Could not find segment with ID: ${segId}`);
+            throw new Error(`Could not find segment with ID: ${segAddres}`);
          }
 
          dispatch(
