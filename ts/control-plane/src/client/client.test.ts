@@ -760,60 +760,53 @@ describe("Manifold", () => {
       },
    };
 
-   const client: MrcTestClient = new MrcTestClient();
-   const pipelineManager = PipelineManager.create(pipeline_config, ["test data"], client);
+   describe("Second Connection", () => {
+      const client: MrcTestClient = new MrcTestClient();
+      const pipelineManager = PipelineManager.create(pipeline_config, ["test data"], client);
+      let pipelineManager2: PipelineManager;
 
-   beforeEach(async () => {
-      await pipelineManager.ensureResourcesCreated();
-   });
+      beforeEach(async () => {
+         await pipelineManager.ensureResourcesCreated();
+         //  Update the PipelineInstance state to assign segment instances
+         const pipeline_instance_state = await pipelineManager.connectionManager.update_resource_status(
+            pipelineManager.pipelineInstanceId,
+            "PipelineInstances",
+            ResourceActualStatus.Actual_Created
+         );
 
-   afterEach(async () => {
-      await pipelineManager.unregister();
-      await client.finalizeClient();
-   });
-
-   test("Resource States", async () => {
-      //  Update the PipelineInstance state to assign segment instances
-      const pipeline_instance_state = await pipelineManager.connectionManager.update_resource_status(
-         pipelineManager.pipelineInstanceId,
-         "PipelineInstances",
-         ResourceActualStatus.Actual_Created
-      );
-
-      // For each manifold, set it to created
-      const manifolds = await Promise.all(
-         pipeline_instance_state!.manifoldIds.map(async (s) => {
-            return await pipelineManager.connectionManager.update_resource_status(
-               s,
-               "ManifoldInstances",
-               ResourceActualStatus.Actual_Created
-            )!;
-         })
-      );
-
-      // For each segment, set it to created
-      const segments = await Promise.all(
-         pipelineManager.connectionManager
-            .getClientState()
-            .pipelineInstances!.entities[pipelineManager.pipelineInstanceId].segmentIds.map(async (s) => {
+         // For each manifold, set it to created
+         await Promise.all(
+            pipeline_instance_state!.manifoldIds.map(async (s) => {
                return await pipelineManager.connectionManager.update_resource_status(
                   s,
-                  "SegmentInstances",
+                  "ManifoldInstances",
                   ResourceActualStatus.Actual_Created
                )!;
             })
-      );
+         );
 
-      // Now update the attached manifolds for each segment
-   });
-
-   describe("Second Connection", () => {
-      let pipelineManager2: PipelineManager;
+         // For each segment, set it to created
+         await Promise.all(
+            pipelineManager.connectionManager
+               .getClientState()
+               .pipelineInstances!.entities[pipelineManager.pipelineInstanceId].segmentIds.map(async (s) => {
+                  return await pipelineManager.connectionManager.update_resource_status(
+                     s,
+                     "SegmentInstances",
+                     ResourceActualStatus.Actual_Created
+                  )!;
+               })
+         );
+      });
 
       afterEach(async () => {
+         await pipelineManager.unregister();
+
          if (pipelineManager2 !== undefined && pipelineManager2.isRegistered) {
             await pipelineManager2.unregister();
          }
+
+         await client.finalizeClient();
       });
 
       test("Ref Counting", async () => {
@@ -829,11 +822,14 @@ describe("Manifold", () => {
          const pipe1seg1Id: number = parseInt(state.segmentInstances!.ids[0]);
          const pipe1seg2Id: number = parseInt(state.segmentInstances!.ids[1]);
 
+         const pipe1seg1Address: number = parseInt(state.segmentInstances?.entities[pipe1seg1Id].segmentAddress || "0");
+         const pipe1seg2Address: number = parseInt(state.segmentInstances?.entities[pipe1seg2Id].segmentAddress || "1");
+
          expect(Object.keys(manifold1State.requestedInputSegments)).toHaveLength(1);
-         expect(manifold1State.requestedInputSegments[pipe1seg1Id]).toBe(true);
+         expect(manifold1State.requestedInputSegments[pipe1seg1Address]).toBe(true);
 
          expect(Object.keys(manifold1State.requestedOutputSegments)).toHaveLength(1);
-         expect(manifold1State.requestedOutputSegments[pipe1seg2Id]).toBe(true);
+         expect(manifold1State.requestedOutputSegments[pipe1seg2Address]).toBe(true);
 
          expect(Object.keys(manifold1State.actualInputSegments)).toHaveLength(0);
          expect(Object.keys(manifold1State.actualOutputSegments)).toHaveLength(0);
@@ -845,11 +841,11 @@ describe("Manifold", () => {
          state = pipelineManager.connectionManager.getClientState();
          manifold1State = manifold1.getState();
          expect(Object.keys(manifold1State.requestedInputSegments)).toHaveLength(1);
-         expect(manifold1State.requestedInputSegments[pipe1seg1Id]).toBe(true);
+         expect(manifold1State.requestedInputSegments[pipe1seg1Address]).toBe(true);
          expect(manifold1State.actualInputSegments).toEqual(manifold1State.requestedInputSegments);
 
          expect(Object.keys(manifold1State.requestedOutputSegments)).toHaveLength(1);
-         expect(manifold1State.requestedOutputSegments[pipe1seg2Id]).toBe(true);
+         expect(manifold1State.requestedOutputSegments[pipe1seg2Address]).toBe(true);
          expect(manifold1State.actualOutputSegments).toEqual(manifold1State.requestedOutputSegments);
 
          // Might need to change this to a search if the order stops being deterministic
@@ -865,6 +861,35 @@ describe("Manifold", () => {
          pipelineManager2 = PipelineManager.create(pipeline_config, ["test data2"], client);
          await pipelineManager2.ensureResourcesCreated();
 
+         const pipeline_instance_state2 = await pipelineManager2.connectionManager.update_resource_status(
+            pipelineManager2.pipelineInstanceId,
+            "PipelineInstances",
+            ResourceActualStatus.Actual_Created
+         );
+
+         // For each manifold, set it to created
+         await Promise.all(
+            pipeline_instance_state2!.manifoldIds.map(async (s) => {
+               return await pipelineManager2.connectionManager.update_resource_status(
+                  s,
+                  "ManifoldInstances",
+                  ResourceActualStatus.Actual_Created
+               )!;
+            })
+         );
+
+         // For each segment, set it to created
+         await Promise.all(
+            pipelineManager2.connectionManager
+               .getClientState()
+               .pipelineInstances!.entities[pipelineManager2.pipelineInstanceId].segmentIds.map(async (s) => {
+                  return await pipelineManager2.connectionManager.update_resource_status(
+                     s,
+                     "SegmentInstances",
+                     ResourceActualStatus.Actual_Created
+                  )!;
+               })
+         );
          // Now see what the state is, we should have 2 manifolds, 2 actual segments and 2 requested segments
          state = pipelineManager2.connectionManager.getClientState();
          expect(state.manifoldInstances!.ids).toHaveLength(2);
@@ -876,23 +901,26 @@ describe("Manifold", () => {
 
          const pipe2seg1Id: number = parseInt(state.segmentInstances!.ids[2]);
          const pipe2seg2Id: number = parseInt(state.segmentInstances!.ids[3]);
+         const pipe2seg1Address: number = parseInt(state.segmentInstances?.entities[pipe2seg1Id].segmentAddress || "2");
+         const pipe2seg2Address: number = parseInt(state.segmentInstances?.entities[pipe2seg2Id].segmentAddress || "3");
+
          expect(Object.keys(manifold1State.requestedInputSegments)).toHaveLength(2);
          expect(Object.keys(manifold1State.actualInputSegments)).toHaveLength(1);
          expect(Object.keys(manifold1State.requestedOutputSegments)).toHaveLength(2);
          expect(Object.keys(manifold1State.actualOutputSegments)).toHaveLength(1);
-         expect(manifold1State.requestedInputSegments[pipe1seg1Id]).toBe(true);
-         expect(manifold1State.requestedInputSegments[pipe2seg1Id]).toBe(false);
-         expect(manifold1State.requestedOutputSegments[pipe1seg2Id]).toBe(true);
-         expect(manifold1State.requestedOutputSegments[pipe2seg2Id]).toBe(false);
+         expect(manifold1State.requestedInputSegments[pipe1seg1Address]).toBe(true);
+         expect(manifold1State.requestedInputSegments[pipe2seg1Address]).toBe(false);
+         expect(manifold1State.requestedOutputSegments[pipe1seg2Address]).toBe(true);
+         expect(manifold1State.requestedOutputSegments[pipe2seg2Address]).toBe(false);
 
          expect(Object.keys(manifold2State.requestedInputSegments)).toHaveLength(2);
          expect(Object.keys(manifold2State.actualInputSegments)).toHaveLength(0);
          expect(Object.keys(manifold2State.requestedOutputSegments)).toHaveLength(2);
          expect(Object.keys(manifold2State.actualOutputSegments)).toHaveLength(0);
-         expect(manifold2State.requestedInputSegments[pipe1seg1Id]).toBe(false);
-         expect(manifold2State.requestedInputSegments[pipe2seg1Id]).toBe(true);
-         expect(manifold2State.requestedOutputSegments[pipe1seg2Id]).toBe(false);
-         expect(manifold2State.requestedOutputSegments[pipe2seg2Id]).toBe(true);
+         expect(manifold2State.requestedInputSegments[pipe1seg1Address]).toBe(false);
+         expect(manifold2State.requestedInputSegments[pipe2seg1Address]).toBe(true);
+         expect(manifold2State.requestedOutputSegments[pipe1seg2Address]).toBe(false);
+         expect(manifold2State.requestedOutputSegments[pipe2seg2Address]).toBe(true);
 
          // Both manifolds need to update their requested/actual segments
          await manifold1.syncActualSegments();
@@ -925,6 +953,7 @@ describe("Manifold", () => {
          pipe1seg2 = state.segmentInstances!.entities[pipe1seg2Id];
          expect(pipe1seg2.state!.refCount).toEqual(2);
 
+         // each segment should have refCount = 2, since 2 pipelines use them
          const pipe2seg1 = state.segmentInstances!.entities[pipe2seg1Id];
          expect(pipe2seg1.name).toEqual("my_seg1");
          expect(pipe2seg1.state!.refCount).toEqual(2);
@@ -1026,10 +1055,10 @@ describe("Manifold", () => {
          // make sure we didn't mess up the first manifold somehow
          manifold1State = manifold1.getState();
          expect(Object.keys(manifold1State.actualInputSegments)).toHaveLength(1);
-         expect(manifold1State.actualInputSegments[pipe1seg1Id]).toBe(true);
+         expect(manifold1State.actualInputSegments[pipe1seg1Address]).toBe(true);
 
          expect(Object.keys(manifold1State.actualOutputSegments)).toHaveLength(1);
-         expect(manifold1State.actualOutputSegments[pipe1seg2Id]).toBe(true);
+         expect(manifold1State.actualOutputSegments[pipe1seg2Address]).toBe(true);
       });
 
       test("Shutdown second input", async () => {
@@ -1045,7 +1074,35 @@ describe("Manifold", () => {
          // Now create a second connection
          pipelineManager2 = PipelineManager.create(pipeline_config, ["test data2"], client);
          await pipelineManager2.ensureResourcesCreated();
+         const pipeline_instance_state2 = await pipelineManager2.connectionManager.update_resource_status(
+            pipelineManager2.pipelineInstanceId,
+            "PipelineInstances",
+            ResourceActualStatus.Actual_Created
+         );
 
+         // For each manifold, set it to created
+         await Promise.all(
+            pipeline_instance_state2!.manifoldIds.map(async (s) => {
+               return await pipelineManager2.connectionManager.update_resource_status(
+                  s,
+                  "ManifoldInstances",
+                  ResourceActualStatus.Actual_Created
+               )!;
+            })
+         );
+
+         // For each segment, set it to created
+         await Promise.all(
+            pipelineManager2.connectionManager
+               .getClientState()
+               .pipelineInstances!.entities[pipelineManager2.pipelineInstanceId].segmentIds.map(async (s) => {
+                  return await pipelineManager2.connectionManager.update_resource_status(
+                     s,
+                     "SegmentInstances",
+                     ResourceActualStatus.Actual_Created
+                  )!;
+               })
+         );
          // Now see what the state is, we should have 2 manifolds, 2 actual segments and 2 requested segments
          state = pipelineManager2.connectionManager.getClientState();
          expect(state.manifoldInstances!.ids).toHaveLength(2);
