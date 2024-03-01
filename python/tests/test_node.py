@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import asyncio
 import functools
 
 import pytest
@@ -475,6 +476,69 @@ def test_sink_function_unpacking(single_segment_pipeline, node_type: str, use_pa
             sink = seg.make_sink_component("sink", on_next, on_error, on_completed)
         else:
             sink = seg.make_sink("sink", on_next, on_error, on_completed)
+
+        seg.make_edge(source, sink)
+
+    single_segment_pipeline({"user_cpuset": "0-1"}, segment_init)
+
+    assert on_next_values == {
+        "one": [0, 1, 2, 3, 4],
+        "two": [2, 3, 4, 5],
+        "three": [4, 5, 6],
+    }
+    assert on_error_count == 0
+    assert on_completed_count == 1
+
+
+@pytest.mark.parametrize("node_type", ["runnable", "component"])
+def test_sink_async(single_segment_pipeline, node_type: str):
+
+    is_component = node_type == "component"
+    use_partial = False
+
+    on_next_values = {}
+    on_error_count = 0
+    on_completed_count = 0
+
+    max_emissions = 5
+
+    def segment_init(seg: mrc.Builder):
+
+        def create_source():
+            for s_idx, s in enumerate(["one", "two", "three"]):
+                for i in range(s_idx, max_emissions):
+                    if (use_partial):
+                        yield s, i + s_idx
+                    else:
+                        yield s, i + s_idx, max_emissions
+
+        source = seg.make_source("source", create_source())
+
+        async def on_next(s: str, i: int, max_e: int):
+            nonlocal on_next_values
+
+            if (s not in on_next_values):
+                on_next_values[s] = []
+
+            await asyncio.sleep(1)
+
+            on_next_values[s].append(i)
+
+            # Make sure this value is set
+            assert max_emissions == max_e
+
+        async def on_error(e: BaseException):
+            nonlocal on_error_count
+            on_error_count += 1
+
+        async def on_completed():
+            nonlocal on_completed_count
+            on_completed_count += 1
+
+        if (is_component):
+            sink = seg.make_sink_async_component("sink", on_next, on_error, on_completed)
+        else:
+            sink = seg.make_sink_async("sink", on_next, on_error, on_completed)
 
         seg.make_edge(source, sink)
 

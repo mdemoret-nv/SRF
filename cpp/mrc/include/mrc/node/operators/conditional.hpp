@@ -28,7 +28,7 @@ class Conditional : public Router<CaseT, T>
     Conditional(std::function<CaseT(const T&)> predicate) : m_predicate(std::move(predicate)) {}
 
   protected:
-    virtual CaseT determine_key_for_value(const T& t)
+    CaseT determine_key_for_value(const T& t) override
     {
         return m_predicate(t);
     }

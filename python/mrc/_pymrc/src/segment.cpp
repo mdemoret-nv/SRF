@@ -342,6 +342,15 @@ std::shared_ptr<mrc::segment::ObjectProperties> BuilderProxy::make_sink_componen
     return self.make_sink_component<PyHolder, PythonSinkComponent>(name, on_next, on_error, on_completed);
 }
 
+std::shared_ptr<mrc::segment::ObjectProperties> BuilderProxy::make_sink_async(mrc::segment::IBuilder& self,
+                                                                              const std::string& name,
+                                                                              OnNextAsyncFunction on_next,
+                                                                              OnErrorAsyncFunction on_error,
+                                                                              OnCompleteAsyncFunction on_completed)
+{
+    return self.make_sink<PyHolder, PythonSink>(name, on_next, on_error, on_completed);
+}
+
 std::shared_ptr<mrc::segment::ObjectProperties> BuilderProxy::get_ingress(mrc::segment::IBuilder& self,
                                                                           const std::string& name)
 {

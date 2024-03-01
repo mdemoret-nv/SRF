@@ -242,7 +242,7 @@ void AsyncioRunnable<InputT, OutputT>::run(mrc::runnable::Context& ctx)
         }
 
         // Need to create a loop
-        LOG(INFO) << "AsyncioRunnable::run() > Creating new event loop";
+        VLOG(10) << "AsyncioRunnable::run() > Creating new event loop";
 
         // Gets (or more likely, creates) an event loop and runs it forever until stop is called
         loop = asyncio.attr("new_event_loop")();
@@ -255,7 +255,7 @@ void AsyncioRunnable<InputT, OutputT>::run(mrc::runnable::Context& ctx)
 
         auto py_awaitable = coro::BoostFibersMainPyAwaitable(this->main_task(scheduler));
 
-        LOG(INFO) << "AsyncioRunnable::run() > Calling run_until_complete() on main_task()";
+        VLOG(10) << "AsyncioRunnable::run() > Calling run_until_complete() on main_task()";
 
         try
         {

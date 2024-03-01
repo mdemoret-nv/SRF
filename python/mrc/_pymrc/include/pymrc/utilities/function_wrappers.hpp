@@ -19,6 +19,7 @@
 
 #include "pymrc/utilities/object_wrappers.hpp"  // IWYU pragma: keep
 
+#include "mrc/coroutines/task.hpp"
 #include "mrc/utils/string_utils.hpp"
 
 #include <pybind11/cast.h>
@@ -29,7 +30,6 @@
 
 #include <exception>
 #include <functional>
-#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <type_traits>
@@ -82,7 +82,7 @@ struct PyFuncHolder<ReturnT(ArgsT...)>
 {
   public:
     using cpp_fn_t       = std::function<ReturnT(ArgsT...)>;
-    using return_t       = std::conditional_t<std::is_same<ReturnT, void>::value, pybind11::detail::void_type, ReturnT>;
+    using return_t       = std::conditional_t<std::is_same_v<ReturnT, void>, pybind11::detail::void_type, ReturnT>;
     using function_ptr_t = ReturnT (*)(ArgsT...);
 
     // Default construct with an empty object. Needed by pybind11 casters
@@ -172,7 +172,7 @@ struct OnNextFunction : public PyFuncHolder<void(PyObjectHolder)>
 
     OnNextFunction() = default;
 
-    static constexpr auto Signature = pybind11::detail::_("Callable[[object], None]");
+    static constexpr auto Signature = pybind11::detail::_("Callable[..., None]");
 
   protected:
     using base_t::cpp_fn_t;
@@ -203,6 +203,52 @@ struct OnCompleteFunction : public PyFuncHolder<void()>
     OnCompleteFunction() = default;
 
     static constexpr auto Signature = pybind11::detail::_("Callable[[], None]");
+
+  protected:
+    using base_t::cpp_fn_t;
+};
+
+struct OnNextAsyncFunction : public PyFuncHolder<coroutines::Task<void>(PyObjectHolder)>
+{
+  public:
+    using base_t = PyFuncHolder<coroutines::Task<void>(PyObjectHolder)>;
+
+    OnNextAsyncFunction() = default;
+
+    static constexpr auto Signature = pybind11::detail::_(
+        "Callable[..., typing.Coroutine[typing.Any, typing.Any, None]]");
+
+  protected:
+    using base_t::cpp_fn_t;
+
+    cpp_fn_t build_cpp_function(pybind11::function&& py_fn) const override;
+};
+
+struct OnErrorAsyncFunction : public PyFuncHolder<coroutines::Task<void>(std::exception_ptr)>
+{
+  public:
+    using base_t = PyFuncHolder<coroutines::Task<void>(std::exception_ptr)>;
+
+    OnErrorAsyncFunction() = default;
+
+    static constexpr auto Signature = pybind11::detail::_(
+        "Callable[[BaseException], typing.Coroutine[typing.Any, typing.Any, None]]");
+
+  protected:
+    using base_t::cpp_fn_t;
+
+    cpp_fn_t build_cpp_function(pybind11::function&& py_fn) const override;
+};
+
+struct OnCompleteAsyncFunction : public PyFuncHolder<coroutines::Task<void>()>
+{
+  public:
+    using base_t = PyFuncHolder<coroutines::Task<void>()>;
+
+    OnCompleteAsyncFunction() = default;
+
+    static constexpr auto Signature = pybind11::detail::_(
+        "Callable[[], typing.Coroutine[typing.Any, typing.Any, None]]");
 
   protected:
     using base_t::cpp_fn_t;
@@ -383,6 +429,19 @@ class type_caster<mrc::pymrc::OnErrorFunction> : public PyFuncWrapperCasterBase<
 
 template <>
 class type_caster<mrc::pymrc::OnCompleteFunction> : public PyFuncWrapperCasterBase<mrc::pymrc::OnCompleteFunction>
+{};
+
+template <>
+class type_caster<mrc::pymrc::OnNextAsyncFunction> : public PyFuncWrapperCasterBase<mrc::pymrc::OnNextAsyncFunction>
+{};
+
+template <>
+class type_caster<mrc::pymrc::OnErrorAsyncFunction> : public PyFuncWrapperCasterBase<mrc::pymrc::OnErrorAsyncFunction>
+{};
+
+template <>
+class type_caster<mrc::pymrc::OnCompleteAsyncFunction>
+  : public PyFuncWrapperCasterBase<mrc::pymrc::OnCompleteAsyncFunction>
 {};
 
 template <>

@@ -186,6 +186,8 @@ std::shared_ptr<Awaitable> Awaitable::iter()
 
 std::shared_ptr<Awaitable> Awaitable::await()
 {
+    this->asyncio_future_blocking = true;
+
     return this->shared_from_this();
 }
 
@@ -207,6 +209,11 @@ void Awaitable::next()
 
         throw exception;
     }
+}
+
+void Awaitable::add_done_callback(pybind11::function callback, pybind11::object context)
+{
+    // Add to the list of callbacks
 }
 
 /** Executor impls -- move to own file **/

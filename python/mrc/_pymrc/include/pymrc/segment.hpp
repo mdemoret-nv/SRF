@@ -33,19 +33,15 @@
 namespace mrc::modules {
 class SegmentModule;
 }  // namespace mrc::modules
-
 namespace mrc::pymrc {
 struct OnCompleteFunction;
-}
-namespace mrc::pymrc {
 struct OnDataFunction;
-}
-namespace mrc::pymrc {
 struct OnErrorFunction;
-}
-namespace mrc::pymrc {
 struct OnNextFunction;
-}
+struct OnCompleteAsyncFunction;
+struct OnErrorAsyncFunction;
+struct OnNextAsyncFunction;
+}  // namespace mrc::pymrc
 namespace mrc::segment {
 struct ObjectProperties;
 }
@@ -191,6 +187,12 @@ class BuilderProxy
                                                                                OnNextFunction on_next,
                                                                                OnErrorFunction on_error,
                                                                                OnCompleteFunction on_completed);
+
+    static std::shared_ptr<mrc::segment::ObjectProperties> make_sink_async(mrc::segment::IBuilder& self,
+                                                                           const std::string& name,
+                                                                           OnNextAsyncFunction on_next,
+                                                                           OnErrorAsyncFunction on_error,
+                                                                           OnCompleteAsyncFunction on_completed);
 
     // Deprecated. This must come first
     static std::shared_ptr<mrc::segment::ObjectProperties> make_node(mrc::segment::IBuilder& self,

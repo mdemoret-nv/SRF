@@ -165,6 +165,70 @@ OnErrorFunction::cpp_fn_t OnErrorFunction::build_cpp_function(pybind11::function
     };
 }
 
+OnNextAsyncFunction::cpp_fn_t OnNextAsyncFunction::build_cpp_function(pybind11::function&& py_fn) const
+{
+    if (!py_fn)
+    {
+        return [](PyObjectHolder x) {
+            pybind11::gil_scoped_acquire gil;
+
+            // Kill the object with the GIL held
+            pybind11::object kill(std::move(x));
+        };
+    }
+
+    // Count only the positional args since we cant push keyword args
+    auto positional_arg_count = count_positional_args(py_fn);
+
+    if (positional_arg_count == 0)
+    {
+        throw std::runtime_error(MRC_CONCAT_STR("Python on_next function '" << std::string(pybind11::str(py_fn))
+                                                                            << "', must accept at least one argument"));
+        return nullptr;
+    }
+
+    // No need to unpack
+    if (positional_arg_count == 1)
+    {
+        // Return the base implementation
+        return base_t::build_cpp_function(std::move(py_fn));
+    }
+
+    // Wrap the original py::function for safe cleanup
+    return [holder = PyFuncWrapper(std::move(py_fn))](PyObjectHolder x) -> void {
+        pybind11::gil_scoped_acquire gil;
+
+        // Move it into a temporary object
+        pybind11::object obj = std::move(x);
+
+        // Unpack the arguments
+        holder.operator()<void, pybind11::detail::args_proxy>(*obj);
+    };
+}
+
+OnErrorAsyncFunction::cpp_fn_t OnErrorAsyncFunction::build_cpp_function(pybind11::function&& py_fn) const
+{
+    if (!py_fn)
+    {
+        return [](std::exception_ptr x) {
+            // Do nothing. Object will go out of scope and the holder will decrement the reference
+        };
+    }
+
+    return [holder = PyFuncWrapper(std::move(py_fn))](std::exception_ptr x) {
+        pybind11::gil_scoped_acquire gil;
+
+        // First, translate the exception setting the python exception value
+        pybind11::detail::translate_exception(x);
+
+        // Creating py::error_already_set will clear the exception and retrieve the value
+        pybind11::error_already_set active_ex;
+
+        // Now actually pass the exception to the callback
+        holder.operator()<void, pybind11::object>(active_ex.value());
+    };
+}
+
 OnDataFunction::cpp_fn_t OnDataFunction::build_cpp_function(pybind11::function&& py_fn) const
 {
     if (!py_fn)

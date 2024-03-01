@@ -188,6 +188,14 @@ PYBIND11_MODULE(segment, py_mod)
                 py::arg("on_error").none(true)    = py::none(),
                 py::arg("on_complete").none(true) = py::none());
 
+    Builder.def("make_sink_async",
+                &BuilderProxy::make_sink_async,
+                py::return_value_policy::reference_internal,
+                py::arg("name"),
+                py::arg("on_next").none(true)     = py::none(),
+                py::arg("on_error").none(true)    = py::none(),
+                py::arg("on_complete").none(true) = py::none());
+
     Builder.def(
         "make_node",
         py::overload_cast<mrc::segment::IBuilder&, const std::string&, OnDataFunction>(&BuilderProxy::make_node),
@@ -206,6 +214,11 @@ PYBIND11_MODULE(segment, py_mod)
         py::return_value_policy::reference_internal);
 
     Builder.def("make_node_component", &BuilderProxy::make_node_component, py::return_value_policy::reference_internal);
+
+    Builder.def(
+        "make_node_async",
+        py::overload_cast<mrc::segment::IBuilder&, const std::string&, OnDataFunction>(&BuilderProxy::make_node),
+        py::return_value_policy::reference_internal);
 
     /**
      * Find and return an existing egress port -- throws if `name` does not exist
