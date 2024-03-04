@@ -24,6 +24,7 @@
 #include "mrc/utils/string_utils.hpp"
 #include "mrc/version.hpp"
 
+#include <pybind11/cast.h>
 #include <pybind11/pybind11.h>
 #include <pybind11/pytypes.h>
 #include <pybind11/stl.h>  // IWYU pragma: keep
@@ -58,7 +59,27 @@ PYBIND11_MODULE(executor, py_mod)
         .def(py::init<>())
         .def("__iter__", &Awaitable::iter)
         .def("__await__", &Awaitable::await)
-        .def("__next__", &Awaitable::next);
+        .def("__next__", &Awaitable::next)
+        .def_property(
+            "_asyncio_future_blocking",
+            [](Awaitable& self) {
+                return self.asyncio_future_blocking;
+            },
+            [](Awaitable& self, bool value) {
+                self.asyncio_future_blocking = value;
+            })
+        .def("get_loop",
+             [](Awaitable& self) {
+                 return self.get_loop();
+             })
+        .def(
+            "add_done_callback",
+            [](Awaitable& self, py::object callback, py::object context) {
+                self.add_done_callback(callback, context);
+            },
+            py::arg("callback"),
+            py::kw_only(),
+            py::arg("context") = py::none());
 
     py::class_<Executor, std::shared_ptr<Executor>>(py_mod, "Executor")
         .def(py::init<>([]() {

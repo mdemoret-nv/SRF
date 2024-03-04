@@ -14,6 +14,7 @@
 # limitations under the License.
 
 import asyncio
+from asyncio import Future
 
 import pytest
 

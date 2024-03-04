@@ -16,12 +16,15 @@
  */
 #pragma once
 
+#include "pymrc/utilities/object_wrappers.hpp"
+
 #include "mrc/types.hpp"  // for Future, SharedFuture
 
 #include <pybind11/pytypes.h>
 
 #include <future>  // for future & promise
 #include <memory>
+#include <mutex>
 
 namespace mrc {
 class Options;
@@ -49,10 +52,22 @@ class Awaitable : public std::enable_shared_from_this<Awaitable>
 
     std::shared_ptr<Awaitable> await();
 
-    void next();
+    std::shared_ptr<Awaitable> next();
+
+    pybind11::object get_loop() const;
+
+    void add_done_callback(pybind11::object callback, pybind11::object context);
+
+    bool asyncio_future_blocking{false};
 
   private:
     Future<pybind11::object> m_future;
+
+    boost::fibers::fiber m_schedule_fiber;
+
+    PyObjectHolder m_loop;
+
+    std::vector<std::tuple<PyObjectHolder, PyObjectHolder>> m_callbacks;
 };
 
 class Executor
@@ -73,6 +88,11 @@ class Executor
 
   private:
     SharedFuture<void> m_join_future;
+    // std::shared_future<void> m_join_future2;
+
+    std::mutex m_mutex;
+    std::thread m_join_thread;
+    // std::vector<std::shared_ptr<PyBoostFuture>> m_join_futures;
 
     std::shared_ptr<pipeline::IExecutor> m_exec;
 };
@@ -91,6 +111,39 @@ class PyBoostFuture
     std::promise<pybind11::object> m_promise{};
     std::future<pybind11::object> m_future{};
 };
+
+// class PyBoostFuture
+// {
+//   public:
+//     PyBoostFuture();
+
+//     pybind11::object result();
+//     pybind11::object py_result();
+
+//     void set_result(pybind11::object&& obj);
+
+//     std::shared_ptr<PyBoostFuture> iter();
+
+//     std::shared_ptr<PyBoostFuture> await();
+
+//     std::shared_ptr<PyBoostFuture> next();
+
+//     pybind11::object get_loop() const;
+
+//     void add_done_callback(pybind11::object callback, pybind11::object context);
+
+//     bool asyncio_future_blocking{false};
+
+//   private:
+//     Promise<pybind11::object> m_promise{};
+//     Future<pybind11::object> m_future{};
+
+//     boost::fibers::fiber m_schedule_fiber;
+
+//     PyObjectHolder m_loop;
+
+//     std::vector<std::tuple<PyObjectHolder, PyObjectHolder>> m_callbacks;
+// };
 
 #pragma GCC visibility pop
 

@@ -18,15 +18,12 @@
 #include "pymrc/port_builders.hpp"
 #include "pymrc/types.hpp"
 
+#include "mrc/utils/debugging_utils.hpp"
 #include "mrc/utils/string_utils.hpp"
 #include "mrc/version.hpp"
 
 #include <pybind11/pybind11.h>
 #include <pybind11/pytypes.h>
-#include <rxcpp/rx.hpp>
-
-#include <memory>
-#include <sstream>
 
 namespace mrc::pymrc {
 
@@ -44,6 +41,11 @@ PYBIND11_MODULE(common, py_mod)
     )pbdoc";
 
     PortBuilderUtil::register_port_util<PyHolder>();
+
+    py_mod.def("is_cpp_debugger_attached",
+               &mrc::utils::is_cpp_debugger_attached,
+               "Returns True if a C++ debugger is attached to the currently running process. Otherwise, returns "
+               "False.");
 
     py_mod.attr("__version__") = MRC_CONCAT_STR(mrc_VERSION_MAJOR << "." << mrc_VERSION_MINOR << "."
                                                                   << mrc_VERSION_PATCH);

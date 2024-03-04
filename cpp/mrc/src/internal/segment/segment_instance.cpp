@@ -231,7 +231,7 @@ void SegmentInstance::do_service_await_live()
         DVLOG(10) << info() << " awaiting on egress port " << name;
         runner->await_live();
     }
-    DVLOG(10) << info() << " join complete";
+    DVLOG(10) << info() << " await_live complete";
 }
 
 void SegmentInstance::do_service_await_join()

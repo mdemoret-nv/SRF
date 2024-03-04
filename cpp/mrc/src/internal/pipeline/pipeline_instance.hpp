@@ -82,6 +82,9 @@ class PipelineInstance final : public Service, public PipelineResources
     std::map<SegmentAddress, std::unique_ptr<segment::SegmentInstance>> m_segments;
     std::map<PortName, std::shared_ptr<manifold::Interface>> m_manifolds;
 
+    Mutex m_mutex;
+    CondV m_joinable_cv;
+
     bool m_joinable{false};
     Promise<void> m_joinable_promise;
     SharedFuture<void> m_joinable_future;

@@ -152,6 +152,7 @@ add_library(libmrc
   src/public/runnable/types.cpp
   src/public/runtime/remote_descriptor.cpp
   src/public/utils/bytes_to_string.cpp
+  src/public/utils/debugging_utils.cpp
   src/public/utils/thread_utils.cpp
   src/public/utils/type_utils.cpp
 )

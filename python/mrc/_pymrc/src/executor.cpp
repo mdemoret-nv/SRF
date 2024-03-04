@@ -24,8 +24,12 @@
 #include "mrc/pipeline/system.hpp"
 #include "mrc/types.hpp"
 
+#include <boost/fiber/fiber.hpp>
 #include <boost/fiber/future/async.hpp>
+#include <boost/fiber/future/future.hpp>
 #include <boost/fiber/future/future_status.hpp>
+#include <boost/fiber/operations.hpp>
+#include <boost/fiber/policy.hpp>
 #include <glog/logging.h>
 #include <pybind11/cast.h>
 #include <pybind11/gil.h>
@@ -43,11 +47,12 @@
 #include <string>
 #include <thread>
 #include <utility>
-
 // IWYU thinks we need array for calling py::print()
 // IWYU pragma: no_include <array>
 
 namespace mrc::pymrc {
+
+using namespace pybind11::literals;
 
 namespace py = pybind11;
 
@@ -177,7 +182,48 @@ void StopIteration::set_error() const
 /** Awaitable impls -- move to own file **/
 Awaitable::Awaitable() = default;
 
-Awaitable::Awaitable(Future<py::object>&& _future) : m_future(std::move(_future)) {}
+Awaitable::Awaitable(Future<py::object>&& _future) : m_future(std::move(_future))
+{
+    {
+        // Save the loop
+        py::gil_scoped_acquire gil;
+
+        auto asyncio = py::module_::import("asyncio");
+
+        m_loop = [](auto& asyncio) -> PyObjectHolder {
+            try
+            {
+                return asyncio.attr("get_running_loop")();
+            } catch (...)
+            {
+                return py::none();
+            }
+        }(asyncio);
+
+        if (m_loop.is_none())
+        {
+            throw std::runtime_error("Must create a Awaitable on a thread with a running loop.");
+        }
+    }
+
+    // Create a fiber to get triggered while waiting on the future
+    m_schedule_fiber = boost::fibers::fiber([this] {
+        // Wait for the future to be ready
+        this->m_future.wait();
+
+        VLOG(10) << "this->m_future.wait() complete";
+
+        // Now we need the GIL again
+        py::gil_scoped_acquire gil;
+
+        // Schedule any callbacks
+        for (auto& [callback, context] : this->m_callbacks)
+        {
+            // Call the callback
+            m_loop.attr("call_soon_threadsafe")(callback, this->shared_from_this(), "context"_a = context);
+        }
+    });
+}
 
 std::shared_ptr<Awaitable> Awaitable::iter()
 {
@@ -186,10 +232,12 @@ std::shared_ptr<Awaitable> Awaitable::iter()
 
 std::shared_ptr<Awaitable> Awaitable::await()
 {
+    this->asyncio_future_blocking = true;
+
     return this->shared_from_this();
 }
 
-void Awaitable::next()
+std::shared_ptr<Awaitable> Awaitable::next()
 {
     // Need to release the GIL before  waiting
     py::gil_scoped_release nogil;
@@ -207,6 +255,21 @@ void Awaitable::next()
 
         throw exception;
     }
+
+    // return nullptr;
+
+    return this->shared_from_this();
+}
+
+pybind11::object Awaitable::get_loop() const
+{
+    return m_loop.copy_obj();
+}
+
+void Awaitable::add_done_callback(pybind11::object callback, pybind11::object context)
+{
+    // Add to the list of callbacks
+    m_callbacks.emplace_back(std::move(callback), std::move(context));
 }
 
 /** Executor impls -- move to own file **/
@@ -267,9 +330,21 @@ void Executor::start()
     m_exec->start();
 
     // Now enqueue a join future
-    m_join_future = boost::fibers::async([this] {
+    // m_join_future = boost::fibers::async([this] {
+    //     m_exec->join();
+
+    //     VLOG(10) << "m_exec->join() complete";
+    // });
+
+    boost::fibers::packaged_task<void()> start_task([this]() {
         m_exec->join();
+
+        VLOG(10) << "m_exec->join() complete";
     });
+
+    m_join_future = start_task.get_future();
+
+    m_join_thread = std::thread(std::move(start_task));
 }
 
 void Executor::stop()
@@ -297,6 +372,8 @@ std::shared_ptr<Awaitable> Executor::join_async()
     Future<py::object> py_fiber_future = boost::fibers::async([this]() -> py::object {
         // Wait for the join future
         this->m_join_future.wait();
+
+        VLOG(10) << "this->m_join_future.wait() complete";
 
         // Grab the GIL to return a py::object
         py::gil_scoped_acquire gil;
@@ -363,5 +440,4 @@ void PyBoostFuture::set_result(py::object&& obj)
 {
     m_promise.set_value(std::move(obj));
 }
-
 }  // namespace mrc::pymrc

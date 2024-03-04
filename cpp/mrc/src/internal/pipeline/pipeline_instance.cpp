@@ -37,6 +37,7 @@
 
 #include <exception>
 #include <memory>
+#include <mutex>
 #include <ostream>
 #include <string>
 #include <utility>
@@ -150,6 +151,8 @@ void PipelineInstance::create_segment(const SegmentAddress& address, std::uint32
             }
 
             m_segments[address] = std::move(segment);
+
+            VLOG(10) << ::mrc::segment::info(address) << " created";
         })
         .get();
 }
@@ -177,6 +180,8 @@ void PipelineInstance::mark_joinable()
     if (!m_joinable)
     {
         m_joinable = true;
+        VLOG(10) << "Marking pipeline joinable. Segments: " << m_segments.size()
+                 << " Manifolds: " << m_manifolds.size();
         m_joinable_promise.set_value();
     }
 }
@@ -210,8 +215,18 @@ void PipelineInstance::do_service_kill()
 
 void PipelineInstance::do_service_await_join()
 {
+    // std::unique_lock lock(m_mutex);
+
+    // m_joinable_cv.wait(lock, [this] {
+    //     return m_joinable;
+    // });
+
     std::exception_ptr first_exception = nullptr;
     m_joinable_future.get();
+
+    VLOG(10) << "PipelineInstance::do_service_await_join(). Segments: " << m_segments.size()
+             << " Manifolds: " << m_manifolds.size();
+
     for (const auto& [address, segment] : m_segments)
     {
         try

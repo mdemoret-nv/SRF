@@ -26,10 +26,16 @@ def is_debugger_attached():
 
     # The presence of a trace function and pydevd means a debugger is attached
     if (trace_func is not None):
-        trace_module = getattr(trace_func, "__module__", None)
+        trace_func_name = str(trace_func)
 
-        if (trace_module is not None and trace_module.find("pydevd") != -1):
+        if (trace_func_name.find("pydevd") != -1):
             return True
+
+    from mrc.core.common import is_cpp_debugger_attached
+
+    # Check for the presence of a C++ debugger as well
+    if (is_cpp_debugger_attached()):
+        return True
 
     return False
 

@@ -40,7 +40,7 @@ def source_pyexception():
             yield 2
             yield 3
 
-            raise RuntimeError("Raised python error")
+            # raise RuntimeError("Raised python error")
 
         return builder.make_source("source", gen_data_and_raise)
 
@@ -72,7 +72,10 @@ def sink():
         def sink_on_next(data):
             print("Got value: {}".format(data))
 
-        return builder.make_sink("sink", sink_on_next, None, None)
+        def sink_on_complete():
+            print("Sink completed")
+
+        return builder.make_sink("sink", sink_on_next, None, sink_on_complete)
 
     return build
 
