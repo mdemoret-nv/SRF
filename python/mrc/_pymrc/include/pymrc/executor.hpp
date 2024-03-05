@@ -18,10 +18,14 @@
 
 #include "pymrc/utilities/object_wrappers.hpp"
 
+#include "mrc/core/utils.hpp"
 #include "mrc/types.hpp"  // for Future, SharedFuture
 
+#include <boost/fiber/buffered_channel.hpp>
+#include <boost/fiber/future/future.hpp>
 #include <pybind11/pytypes.h>
 
+#include <atomic>
 #include <future>  // for future & promise
 #include <memory>
 #include <mutex>
@@ -70,6 +74,41 @@ class Awaitable : public std::enable_shared_from_this<Awaitable>
     std::vector<std::tuple<PyObjectHolder, PyObjectHolder>> m_callbacks;
 };
 
+class PyBoostPromise : public std::enable_shared_from_this<PyBoostPromise>
+{
+  public:
+    PyBoostPromise();
+
+    // Future interface
+    std::shared_ptr<PyBoostPromise> iter();
+
+    std::shared_ptr<PyBoostPromise> await();
+
+    std::shared_ptr<PyBoostPromise> next();
+
+    pybind11::object get_loop() const;
+
+    void add_done_callback(pybind11::object callback, pybind11::object context);
+
+    bool asyncio_future_blocking{false};
+
+    pybind11::object result();
+
+    void set_result(pybind11::object&& obj);
+
+    void set_exception(std::exception_ptr&& e);
+
+  private:
+    void schedule_callbacks();
+
+    std::promise<pybind11::object> m_promise{};
+    std::future<pybind11::object> m_future{};
+
+    PyObjectHolder m_loop;
+
+    std::vector<std::tuple<PyObjectHolder, PyObjectHolder>> m_callbacks;
+};
+
 class Executor
 {
   public:
@@ -82,17 +121,47 @@ class Executor
     void start();
     void stop();
     void join();
-    std::shared_ptr<Awaitable> join_async();
+    std::shared_ptr<PyBoostPromise> join_async();
 
     std::shared_ptr<pipeline::IExecutor> get_executor() const;
 
   private:
+    template <class F, class... ArgsT>
+    auto enqueue_work(F&& f, ArgsT&&... args) -> Future<std::result_of_t<F(ArgsT...)>>
+    {
+        using namespace boost::fibers;
+        using return_type_t = std::result_of_t<F(ArgsT...)>;
+
+        packaged_task<return_type_t()> task(std::bind(std::forward<F>(f), std::forward<ArgsT>(args)...));
+        future<return_type_t> future = task.get_future();
+
+        // track detached fibers - main fiber will wait on all detached fibers to finish
+        packaged_task<void()> wrapped_task([this, t = std::move(task)]() mutable {
+            auto decrement_detached = Unwinder::create([this]() {
+                --m_pending_work_count;
+            });
+
+            // Call the task
+            t();
+
+            // Detached will get automatically decremented even if there is an exception
+        });
+        ++m_pending_work_count;
+
+        m_work_queue.push(std::move(wrapped_task));
+
+        return future;
+    }
+
     SharedFuture<void> m_join_future;
     // std::shared_future<void> m_join_future2;
 
     std::mutex m_mutex;
     std::thread m_join_thread;
-    // std::vector<std::shared_ptr<PyBoostFuture>> m_join_futures;
+    std::vector<std::shared_ptr<PyBoostPromise>> m_join_promises;
+
+    std::atomic_int m_pending_work_count{0};
+    boost::fibers::buffered_channel<boost::fibers::packaged_task<void()>> m_work_queue;
 
     std::shared_ptr<pipeline::IExecutor> m_exec;
 };
@@ -111,39 +180,6 @@ class PyBoostFuture
     std::promise<pybind11::object> m_promise{};
     std::future<pybind11::object> m_future{};
 };
-
-// class PyBoostFuture
-// {
-//   public:
-//     PyBoostFuture();
-
-//     pybind11::object result();
-//     pybind11::object py_result();
-
-//     void set_result(pybind11::object&& obj);
-
-//     std::shared_ptr<PyBoostFuture> iter();
-
-//     std::shared_ptr<PyBoostFuture> await();
-
-//     std::shared_ptr<PyBoostFuture> next();
-
-//     pybind11::object get_loop() const;
-
-//     void add_done_callback(pybind11::object callback, pybind11::object context);
-
-//     bool asyncio_future_blocking{false};
-
-//   private:
-//     Promise<pybind11::object> m_promise{};
-//     Future<pybind11::object> m_future{};
-
-//     boost::fibers::fiber m_schedule_fiber;
-
-//     PyObjectHolder m_loop;
-
-//     std::vector<std::tuple<PyObjectHolder, PyObjectHolder>> m_callbacks;
-// };
 
 #pragma GCC visibility pop
 

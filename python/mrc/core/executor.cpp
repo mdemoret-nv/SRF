@@ -81,6 +81,36 @@ PYBIND11_MODULE(executor, py_mod)
             py::kw_only(),
             py::arg("context") = py::none());
 
+    py::class_<PyBoostPromise, std::shared_ptr<PyBoostPromise>>(py_mod, "Promise")
+        .def(py::init<>([]() {
+            return std::make_shared<PyBoostPromise>();
+        }))
+        .def("result", &PyBoostPromise::result)
+        .def("set_result", &PyBoostPromise::set_result)
+        .def("__iter__", &PyBoostPromise::iter)
+        .def("__await__", &PyBoostPromise::await)
+        .def("__next__", &PyBoostPromise::next)
+        .def_property(
+            "_asyncio_future_blocking",
+            [](PyBoostPromise& self) {
+                return self.asyncio_future_blocking;
+            },
+            [](PyBoostPromise& self, bool value) {
+                self.asyncio_future_blocking = value;
+            })
+        .def("get_loop",
+             [](PyBoostPromise& self) {
+                 return self.get_loop();
+             })
+        .def(
+            "add_done_callback",
+            [](PyBoostPromise& self, py::object callback, py::object context) {
+                self.add_done_callback(callback, context);
+            },
+            py::arg("callback"),
+            py::kw_only(),
+            py::arg("context") = py::none());
+
     py::class_<Executor, std::shared_ptr<Executor>>(py_mod, "Executor")
         .def(py::init<>([]() {
             auto options = std::make_shared<mrc::Options>();
