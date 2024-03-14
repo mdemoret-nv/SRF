@@ -26,7 +26,6 @@ import {
 const default_resource_state: IResourceState = {
    requestedStatus: ResourceRequestedStatus.Requested_Initialized,
    actualStatus: ResourceActualStatus.Actual_Unknown,
-   refCount: 0,
    dependees: [],
 };
 

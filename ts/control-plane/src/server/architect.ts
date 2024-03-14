@@ -415,7 +415,6 @@ class Architect implements ArchitectServiceImplementation {
                      state: {
                         requestedStatus: ResourceRequestedStatus.Requested_Initialized,
                         actualStatus: ResourceActualStatus.Actual_Unknown,
-                        refCount: 0,
                         dependees: [],
                      },
                      assignedSegmentIds: [],

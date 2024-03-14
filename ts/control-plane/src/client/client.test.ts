@@ -851,11 +851,11 @@ describe("Manifold", () => {
          // Might need to change this to a search if the order stops being deterministic
          let pipe1seg1 = state.segmentInstances!.entities[pipe1seg1Id];
          expect(pipe1seg1.name).toEqual("my_seg1");
-         expect(pipe1seg1.state!.refCount).toEqual(1);
+         expect(pipe1seg1.state!.dependees.length).toEqual(1);
 
          let pipe1seg2 = state.segmentInstances!.entities[pipe1seg2Id];
          expect(pipe1seg2.name).toEqual("my_seg2");
-         expect(pipe1seg2.state!.refCount).toEqual(1);
+         expect(pipe1seg2.state!.dependees.length).toEqual(1);
 
          // Now create a second connection
          pipelineManager2 = PipelineManager.create(pipeline_config, ["test data2"], client);
@@ -948,19 +948,19 @@ describe("Manifold", () => {
          expect(manifold2State.actualOutputSegments).toEqual(manifold2State.requestedOutputSegments);
 
          pipe1seg1 = state.segmentInstances!.entities[pipe1seg1Id];
-         expect(pipe1seg1.state!.refCount).toEqual(2);
+         expect(pipe1seg1.state!.dependees.length).toEqual(2);
 
          pipe1seg2 = state.segmentInstances!.entities[pipe1seg2Id];
-         expect(pipe1seg2.state!.refCount).toEqual(2);
+         expect(pipe1seg2.state!.dependees.length).toEqual(2);
 
          // each segment should have refCount = 2, since 2 pipelines use them
          const pipe2seg1 = state.segmentInstances!.entities[pipe2seg1Id];
          expect(pipe2seg1.name).toEqual("my_seg1");
-         expect(pipe2seg1.state!.refCount).toEqual(2);
+         expect(pipe2seg1.state!.dependees.length).toEqual(2);
 
          const pipe2seg2 = state.segmentInstances!.entities[pipe2seg2Id];
          expect(pipe2seg2.name).toEqual("my_seg2");
-         expect(pipe2seg2.state!.refCount).toEqual(2);
+         expect(pipe2seg2.state!.dependees.length).toEqual(2);
 
          // Simulate a graceful shutdown of the second pipeline.
          for (const worker of pipelineManager2.workersManager.workers) {
@@ -971,7 +971,7 @@ describe("Manifold", () => {
             }
          }
 
-         // Both manifolds should have some of their reqiested segments removed
+         // Both manifolds should have some of their requested segments removed
          manifold1State = manifold1.getState();
          manifold2State = manifold2.getState();
          expect(Object.keys(manifold1State.requestedInputSegments)).toHaveLength(1);
@@ -1003,11 +1003,11 @@ describe("Manifold", () => {
          state = pipelineManager2.connectionManager.getClientState();
          pipe1seg1 = state.segmentInstances!.entities[pipe1seg1Id];
          expect(pipe1seg1.name).toEqual("my_seg1");
-         expect(pipe1seg1.state!.refCount).toEqual(1);
+         expect(pipe1seg1.state!.dependees.length).toEqual(1);
 
          pipe1seg2 = state.segmentInstances!.entities[pipe1seg2Id];
          expect(pipe1seg2.name).toEqual("my_seg2");
-         expect(pipe1seg2.state!.refCount).toEqual(1);
+         expect(pipe1seg2.state!.dependees.length).toEqual(1);
 
          for (const worker of pipelineManager2.workersManager.workers) {
             for (const seg of worker.segments) {
@@ -1204,11 +1204,11 @@ describe("Manifold", () => {
          state = pipelineManager2.connectionManager.getClientState();
          let pipe1seg1 = state.segmentInstances!.entities[pipe1seg1Id];
          expect(pipe1seg1.name).toEqual("my_seg1");
-         expect(pipe1seg1.state!.refCount).toEqual(2);
+         expect(pipe1seg1.state!.dependees.length).toEqual(2);
 
          let pipe1seg2 = state.segmentInstances!.entities[pipe1seg2Id];
          expect(pipe1seg2.name).toEqual("my_seg2");
-         expect(pipe1seg2.state!.refCount).toEqual(1);
+         expect(pipe1seg2.state!.dependees.length).toEqual(1);
 
          // now stop pipe2seg2
          foundPipe2Seg2 = false;
@@ -1228,11 +1228,11 @@ describe("Manifold", () => {
          state = pipelineManager2.connectionManager.getClientState();
          pipe1seg1 = state.segmentInstances!.entities[pipe1seg1Id];
          expect(pipe1seg1.name).toEqual("my_seg1");
-         expect(pipe1seg1.state!.refCount).toEqual(1);
+         expect(pipe1seg1.state!.dependees.length).toEqual(1);
 
          pipe1seg2 = state.segmentInstances!.entities[pipe1seg2Id];
          expect(pipe1seg2.name).toEqual("my_seg2");
-         expect(pipe1seg2.state!.refCount).toEqual(1);
+         expect(pipe1seg2.state!.dependees.length).toEqual(1);
 
          // Manifold2 should have been asked to shut down, manifold1 should still be running
          manifold1State = manifold1.getState();

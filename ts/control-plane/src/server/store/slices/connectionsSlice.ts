@@ -48,7 +48,6 @@ export const connectionsSlice = createSlice({
             assignedPipelineIds: [],
             state: {
                actualStatus: ResourceActualStatus.Actual_Unknown,
-               refCount: 0,
                requestedStatus: ResourceRequestedStatus.Requested_Created,
                dependees: [],
             },

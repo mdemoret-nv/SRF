@@ -2,12 +2,12 @@
 import { createSelector, createSlice, PayloadAction } from "@reduxjs/toolkit";
 
 import { pipelineInstancesRemove } from "@mrc/server/store/slices/pipelineInstancesSlice";
-import { IManifoldDefinition, IManifoldInstance, ISegmentInstance } from "@mrc/common/entities";
+import { IManifoldDefinition, IManifoldInstance, IResourceDefinition, ISegmentInstance } from "@mrc/common/entities";
 import {
    ResourceActualStatus,
    resourceActualStatusToNumber,
-   ResourceDefinition,
    resourceRequestedStatusToNumber,
+   Resource_Type,
 } from "@mrc/proto/mrc/protos/architect_state";
 import { ResourceRequestedStatus } from "@mrc/proto/mrc/protos/architect_state";
 import { pipelineDefinitionsSelectById } from "@mrc/server/store/slices/pipelineDefinitionsSlice";
@@ -259,7 +259,6 @@ function determineManifoldSegmentMapping(state: RootState, manifold_def: IManifo
          );
       })
       .reduce((acc, val) => acc.concat(val), []);
-
    const active_output_segs = Object.entries(manifold_def.outputSegmentIds)
       .map(([segmentName]) => {
          // Find all segments that match this name and definition pair
@@ -449,7 +448,7 @@ function manifoldInstanceUpdateActualSegment(
       dispatch(
          segmentInstanceIncRefCount({
             segment: segment,
-            resource: { resourceType: "ManifoldInstance", resourceId: manifold.id } as ResourceDefinition,
+            resource: { resourceType: Resource_Type.ManifoldInstance, resourceId: manifold.id } as IResourceDefinition,
          })
       );
    } else {
@@ -467,7 +466,10 @@ function manifoldInstanceUpdateActualSegment(
          dispatch(
             segmentInstanceDecRefCount({
                segment: segment,
-               resource: { resourceType: "ManifoldInstance", resourceId: manifold.id } as ResourceDefinition,
+               resource: {
+                  resourceType: Resource_Type.ManifoldInstance,
+                  resourceId: manifold.id,
+               } as IResourceDefinition,
             })
          );
       } else {

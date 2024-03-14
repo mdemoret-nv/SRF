@@ -1,7 +1,7 @@
-import { IResourceState } from "@mrc/common/entities";
+import { IResourceDefinition, IResourceState } from "@mrc/common/entities";
 import {
    ResourceActualStatus,
-   ResourceDefinition,
+   Resource_Definition,
    ResourceRequestedStatus,
 } from "@mrc/proto/mrc/protos/architect_state";
 
@@ -25,11 +25,7 @@ export class ResourceState implements IResourceState {
       return this._interface.actualStatus;
    }
 
-   public get refCount(): number {
-      return this._interface.dependees.length;
-   }
-
-   public get dependees(): ResourceDefinition[] {
+   public get dependees(): Resource_Definition[] {
       return this._interface.dependees;
    }
 
@@ -41,8 +37,28 @@ export class ResourceState implements IResourceState {
       return new ResourceState({
          requestedStatus: ResourceRequestedStatus.Requested_Initialized,
          actualStatus: ResourceActualStatus.Actual_Unknown,
-         refCount: 0,
          dependees: [],
       });
    }
 }
+
+export const addDependee = (dependee: IResourceDefinition, state: IResourceState): void => {
+   if (
+      state.dependees.some((d) => d.resourceId === dependee.resourceType && d.resourceType === dependee.resourceType)
+   ) {
+      throw new Error("Dependee already exists in the list");
+   }
+   state.dependees.push(dependee as Resource_Definition);
+};
+
+export const removeDependee = (dependee: IResourceDefinition, state: IResourceState): void => {
+   const initialLength = state.dependees.length;
+   state.dependees = state.dependees.filter(
+      (d) => d.resourceId !== dependee.resourceId && d.resourceType === dependee.resourceType
+   );
+   const finalLength = state.dependees.length;
+
+   if (initialLength - finalLength !== 1) {
+      throw new Error("Exactly one dependee should be removed");
+   }
+};
