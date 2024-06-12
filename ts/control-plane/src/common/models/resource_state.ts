@@ -1,14 +1,13 @@
 import { IResourceDefinition, IResourceState } from "@mrc/common/entities";
 import {
    ResourceActualStatus,
-   Resource_Definition,
+   ResourceDefinition,
    ResourceRequestedStatus,
 } from "@mrc/proto/mrc/protos/architect_state";
 
 export class ResourceState implements IResourceState {
    // requestedStatus: ResourceRequestedStatus = ResourceRequestedStatus.Requested_Initialized;
    // actualStatus: ResourceActualStatus = ResourceActualStatus.Actual_Unknown;
-   // refCount = 0;
    // dependees = []
 
    private _interface: IResourceState;
@@ -25,7 +24,7 @@ export class ResourceState implements IResourceState {
       return this._interface.actualStatus;
    }
 
-   public get dependees(): Resource_Definition[] {
+   public get dependees(): ResourceDefinition[] {
       return this._interface.dependees;
    }
 
@@ -48,7 +47,7 @@ export const addDependee = (dependee: IResourceDefinition, state: IResourceState
    ) {
       throw new Error("Dependee already exists in the list");
    }
-   state.dependees.push(dependee as Resource_Definition);
+   state.dependees.push(dependee as ResourceDefinition);
 };
 
 export const removeDependee = (dependee: IResourceDefinition, state: IResourceState): void => {

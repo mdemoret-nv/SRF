@@ -9,6 +9,7 @@ import {
    ResourceActualStatus,
    resourceActualStatusToNumber,
    resourceRequestedStatusToNumber,
+   ResourceType,
 } from "@mrc/proto/mrc/protos/architect_state";
 import { pipelineDefinitionsSelectById } from "@mrc/server/store/slices/pipelineDefinitionsSlice";
 import { AppListenerAPI } from "@mrc/server/store/listener_middleware";
@@ -195,7 +196,7 @@ export function segmentInstancesRequestStop(segmentInstanceId: string) {
          );
       } else {
          found.state.dependees.forEach((resource) => {
-            if (resource.resourceType === "ManifoldInstance") {
+            if (resource.resourceType === ResourceType.Manifold_Instance) {
                const manifold = manifoldInstancesSelectById(state, resource.resourceId);
                if (manifold) {
                   if (found.segmentAddress in (manifold?.requestedInputSegments ?? {})) {

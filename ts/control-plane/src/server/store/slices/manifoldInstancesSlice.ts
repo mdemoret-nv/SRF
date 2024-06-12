@@ -7,7 +7,7 @@ import {
    ResourceActualStatus,
    resourceActualStatusToNumber,
    resourceRequestedStatusToNumber,
-   Resource_Type,
+   ResourceType,
 } from "@mrc/proto/mrc/protos/architect_state";
 import { ResourceRequestedStatus } from "@mrc/proto/mrc/protos/architect_state";
 import { pipelineDefinitionsSelectById } from "@mrc/server/store/slices/pipelineDefinitionsSlice";
@@ -448,7 +448,7 @@ function manifoldInstanceUpdateActualSegment(
       dispatch(
          segmentInstanceIncRefCount({
             segment: segment,
-            resource: { resourceType: Resource_Type.ManifoldInstance, resourceId: manifold.id } as IResourceDefinition,
+            resource: { resourceType: ResourceType.Manifold_Instance, resourceId: manifold.id } as IResourceDefinition,
          })
       );
    } else {
@@ -467,7 +467,7 @@ function manifoldInstanceUpdateActualSegment(
             segmentInstanceDecRefCount({
                segment: segment,
                resource: {
-                  resourceType: Resource_Type.ManifoldInstance,
+                  resourceType: ResourceType.Manifold_Instance,
                   resourceId: manifold.id,
                } as IResourceDefinition,
             })
