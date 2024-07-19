@@ -14,6 +14,7 @@
             "ms-python.pylint",
             "ms-vscode.cmake-tools",
             "stkb.rewrap",
+            "twxs.cmake",
         ],
         // List of extensions recommended by VS Code that should not be recommended for users of this workspace.
         "unwantedRecommendations": [
@@ -198,11 +199,6 @@
             "editor.wordBasedSuggestions": "off",
             "editor.wordWrapColumn": 120
         },
-        "[javascript]": {
-            "editor.defaultFormatter": "esbenp.prettier-vscode",
-            "editor.formatOnSave": true,
-            "editor.wordWrapColumn": 120
-        },
         "[python]": {
             "editor.codeActionsOnSave": {
                 "source.organizeImports": "explicit"
@@ -223,9 +219,6 @@
         "cmake.format.allowOptionalArgumentIndentation": true,
         "editor.rulers": [
             120
-        ],
-        "eslint.workingDirectories": [
-            "./ts/control-plane"
         ],
         "files.insertFinalNewline": true,
         "files.trimTrailingWhitespace": true,
@@ -307,9 +300,6 @@
         },
         "testMate.cpp.log.logpanel": true,
         "testMate.cpp.test.executables": "{build,Build,BUILD,out,Out,OUT}/**/*{test,Test,TEST}_*.x",
-        "typescript.format.semicolons": "insert",
-        "typescript.preferences.quoteStyle": "double",
-        "typescript.referencesCodeLens.enabled": true,
         "yapf.args": [
             "--style=${workspaceFolder}/python/setup.cfg"
         ]

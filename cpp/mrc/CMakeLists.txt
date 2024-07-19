@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2022-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2022-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -130,8 +130,10 @@ add_library(libmrc
   src/public/core/logging.cpp
   src/public/core/thread.cpp
   src/public/coroutines/event.cpp
+  src/public/coroutines/io_scheduler.cpp
   src/public/coroutines/sync_wait.cpp
   src/public/coroutines/task_container.cpp
+  src/public/coroutines/test_scheduler.cpp
   src/public/coroutines/thread_local_context.cpp
   src/public/coroutines/thread_pool.cpp
   src/public/cuda/device_guard.cpp
@@ -169,7 +171,7 @@ add_library(libmrc
   src/public/runnable/types.cpp
   src/public/runtime/remote_descriptor.cpp
   src/public/utils/bytes_to_string.cpp
-  src/public/utils/library_utils.cpp
+  src/public/utils/string_utils.cpp
   src/public/utils/thread_utils.cpp
   src/public/utils/type_utils.cpp
 )
@@ -217,7 +219,7 @@ target_compile_definitions(libmrc
     $<$<CONFIG:DEBUG>:-DDEBUG> # Add DEBUG macro in debug mode (better than NDEBUG)
 )
 
-if (MRC_ENABLE_CODECOV)
+if(MRC_ENABLE_CODECOV)
   target_compile_definitions(libmrc INTERFACE "MRC_CODECOV_ENABLED")
 endif()
 
@@ -233,7 +235,6 @@ set_target_properties(libmrc PROPERTIES OUTPUT_NAME ${PROJECT_NAME})
 
 # ##################################################################################################
 # - install targets --------------------------------------------------------------------------------
-
 rapids_cmake_install_lib_dir(lib_dir)
 include(CPack)
 include(GNUInstallDirs)
@@ -241,7 +242,7 @@ include(GNUInstallDirs)
 install(
   TARGETS libmrc
   DESTINATION ${lib_dir}
-  EXPORT ${PROJECT_NAME}-core-exports
+  EXPORT ${PROJECT_NAME}-exports
   COMPONENT Core
 )
 
@@ -253,7 +254,6 @@ install(
 
 # ##################################################################################################
 # - subdirectories ---------------------------------------------------------------------------------
-
 if(MRC_BUILD_TESTS)
   add_subdirectory(tests)
 
@@ -266,7 +266,6 @@ endif()
 
 # ##################################################################################################
 # - install export ---------------------------------------------------------------------------------
-
 set(doc_string
   [=[
 Provide targets for mrc.
@@ -279,7 +278,7 @@ set(rapids_project_version_compat SameMinorVersion)
 # Need to explicitly set VERSION ${PROJECT_VERSION} here since rapids_cmake gets
 # confused with the `RAPIDS_VERSION` variable we use
 rapids_export(INSTALL ${PROJECT_NAME}
-  EXPORT_SET ${PROJECT_NAME}-core-exports
+  EXPORT_SET ${PROJECT_NAME}-exports
   GLOBAL_TARGETS libmrc
   VERSION ${PROJECT_VERSION}
   NAMESPACE mrc::
@@ -290,7 +289,7 @@ rapids_export(INSTALL ${PROJECT_NAME}
 # ##################################################################################################
 # - build export ----------------------------------------------------------------------------------
 rapids_export(BUILD ${PROJECT_NAME}
-  EXPORT_SET ${PROJECT_NAME}-core-exports
+  EXPORT_SET ${PROJECT_NAME}-exports
   GLOBAL_TARGETS libmrc
   VERSION ${PROJECT_VERSION}
   LANGUAGES C CXX CUDA

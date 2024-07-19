@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2018-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2018-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -37,7 +37,7 @@ option(MRC_USE_CONDA "Enables finding dependencies via conda. All dependencies m
   environment" ON)
 option(MRC_USE_IWYU "Enable running include-what-you-use as part of the build process" OFF)
 
-set(MRC_RAPIDS_VERSION "23.12" CACHE STRING "Which version of RAPIDS to build for. Sets default versions for RAPIDS CMake and RMM.")
+set(MRC_RAPIDS_VERSION "24.02" CACHE STRING "Which version of RAPIDS to build for. Sets default versions for RAPIDS CMake and RMM.")
 
 set(MRC_CACHE_DIR "${CMAKE_SOURCE_DIR}/.cache" CACHE PATH "Directory to contain all CPM and CCache data")
 mark_as_advanced(MRC_CACHE_DIR)
@@ -81,7 +81,7 @@ morpheus_utils_initialize_cuda_arch(mrc)
 message(STATUS "CMAKE_TOOLCHAIN_FILE: ${CMAKE_TOOLCHAIN_FILE}")
 
 project(mrc
-  VERSION 24.03.00
+  VERSION 24.10.00
   LANGUAGES C CXX
 )
 
