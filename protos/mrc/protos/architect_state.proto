@@ -79,8 +79,14 @@ enum ResourceActualStatus
    Actual_Destroyed = 9;
 }
 
+enum ResourceType {
+   // This enum represents the type of resource that is being managed by the control plane.
+   Manifold_Instance = 0;
+   Segment_Instance = 1;
+}
+
 message ResourceDefinition {
-   string resource_type = 1;
+   ResourceType resource_type = 1;
    uint64 resource_id = 2;
 }
 
@@ -94,11 +100,8 @@ message ResourceState {
    // What the local resource has reported its state as
    ResourceActualStatus actual_status = 3;
 
-   // Number of users besides the owner of this resource
-   int32 ref_count = 4;
-
    // Dependees of the Resource
-   repeated ResourceDefinition dependees = 5;
+   repeated ResourceDefinition dependees = 4;
 }
 
 message Executor {
