@@ -98,10 +98,6 @@ rapids_find_package(nlohmann_json REQUIRED
 # =========
 morpheus_utils_configure_prometheus_cpp()
 
-# libcudacxx
-# =========
-morpheus_utils_configure_libcudacxx()
-
 # libuv
 # ======
 rapids_find_package(UV REQUIRED
@@ -117,10 +113,6 @@ rapids_find_package(NodeJs REQUIRED
   BUILD_EXPORT_SET ${PROJECT_NAME}-core-exports
   INSTALL_EXPORT_SET ${PROJECT_NAME}-core-exports
 )
-
-# UCXX
-# ====
-morpheus_utils_configure_UCXX()
 
 if(MRC_BUILD_BENCHMARKS)
   # google benchmark

@@ -13,8 +13,4 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-list(APPEND CMAKE_MESSAGE_CONTEXT "cpp")
-
 add_subdirectory(mrc)
-
-list(POP_BACK CMAKE_MESSAGE_CONTEXT)

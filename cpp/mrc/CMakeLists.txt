@@ -13,8 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-list(APPEND CMAKE_MESSAGE_CONTEXT "mrc")
-
 # ##################################################################################################
 # - libmrc -----------------------------------------------------------------------------------------
 
@@ -193,13 +191,11 @@ target_link_libraries(libmrc
     gRPC::grpc++
     gRPC::grpc
     gRPC::gpr
-    ucxx::ucxx
   PRIVATE
     hwloc::hwloc
     prometheus-cpp::core # private in MR !199
     ucx::ucp
-    ucx::ucs # Not exported by UCXX
-    # ucx::ucp
+    ucx::ucs
     NodeJs::Node
     UV::uv
 )
@@ -222,7 +218,6 @@ target_compile_definitions(libmrc
 if(MRC_ENABLE_CODECOV)
   target_compile_definitions(libmrc INTERFACE "MRC_CODECOV_ENABLED")
 endif()
-
 # In debug mode, dont allow missing symbols
 # target_link_options(libmrc PUBLIC "$<$<CONFIG:Debug>:-Wl,--no-allow-shlib-undefined>")
 
@@ -297,5 +292,3 @@ rapids_export(BUILD ${PROJECT_NAME}
   DOCUMENTATION doc_string
   FINAL_CODE_BLOCK code_string
 )
-
-list(POP_BACK CMAKE_MESSAGE_CONTEXT)
