@@ -15,9 +15,9 @@
 
 list(APPEND CMAKE_MESSAGE_CONTEXT "dep")
 
-morpheus_utils_print_config()
-
-include(${CMAKE_CURRENT_LIST_DIR}/Configure_UCXX.cmake)
+if (VERBOSE)
+  morpheus_utils_print_config()
+endif()
 
 morpheus_utils_initialize_cpm(MRC_CACHE_DIR)
 
@@ -32,9 +32,9 @@ rapids_find_package(CUDAToolkit
 # =====
 morpheus_utils_configure_boost()
 
-# # UCX
-# # ===
-# morpheus_utils_configure_ucx()
+# UCX
+# ===
+morpheus_utils_configure_ucx()
 
 # hwloc
 # =====
