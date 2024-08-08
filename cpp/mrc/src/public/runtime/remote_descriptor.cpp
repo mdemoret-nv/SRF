@@ -256,7 +256,7 @@ std::shared_ptr<RemoteDescriptorImpl2> RemoteDescriptorImpl2::from_local(
             continue;
         }
 
-        auto* deferred_msg = remote_payload->mutable_deferred_msg();
+        auto* deferred_msg      = remote_payload->mutable_deferred_msg();
         auto deferred_local_msg = local_payload.deferred_msg();
 
         auto ucx_block = data_plane_resources.registration_cache().lookup(deferred_local_msg.address());
@@ -339,7 +339,8 @@ std::shared_ptr<Descriptor2> Descriptor2::create(std::any value, data_plane::Dat
     return std::shared_ptr<Descriptor2>(new Descriptor2(std::move(value), data_plane_resources));
 }
 
-std::shared_ptr<Descriptor2> Descriptor2::create(memory::buffer_view view, data_plane::DataPlaneResources2& data_plane_resources)
+std::shared_ptr<Descriptor2> Descriptor2::create(memory::buffer_view view,
+                                                 data_plane::DataPlaneResources2& data_plane_resources)
 {
     auto descriptor = std::make_unique<codable::DescriptorObjectHandler>();
 
@@ -367,7 +368,8 @@ std::shared_ptr<Descriptor2> Descriptor2::create(memory::buffer_view view, data_
         auto* deferred_remote_msg = remote_payload.mutable_deferred_msg();
 
         // Allocate the memory needed for this and prevent it from going out-of-scope before request completes
-        auto mr = memory::fetch_memory_resource_instance(mrc::codable::decode_memory_type(remote_payload.memory_kind()));
+        auto mr = memory::fetch_memory_resource_instance(
+            mrc::codable::decode_memory_type(remote_payload.memory_kind()));
         buffers.emplace_back(deferred_remote_msg->bytes(), mr);
 
         requests.push_back(data_plane_resources.memory_recv_async(ep,
@@ -398,6 +400,73 @@ std::shared_ptr<Descriptor2> Descriptor2::create(memory::buffer_view view, data_
     return instance;
 }
 
+coroutines::Task<std::shared_ptr<Descriptor2>> Descriptor2::await_create(
+    memory::buffer_view view,
+    data_plane::DataPlaneResources2& data_plane_resources)
+{
+    auto descriptor = std::make_unique<codable::DescriptorObjectHandler>();
+
+    if (!descriptor->proto().ParseFromArray(view.data(), view.bytes()))
+    {
+        LOG(FATAL) << "Failed to parse EncodedObjectProto from bytes";
+    }
+
+    std::vector<std::shared_ptr<ucxx::Request>> requests;
+    std::vector<memory::buffer> buffers;
+
+    // Get the endpoint of the remote descriptor
+    auto ep = data_plane_resources.find_endpoint(descriptor->proto().instance_id());
+
+    // Loop over all remote payloads and convert them to local payloads
+    for (auto& remote_payload : *descriptor->proto().mutable_payloads())
+    {
+        // If payload is an EagerMessage, we do not need to do any pulling
+        if (remote_payload.has_eager_msg())
+        {
+            continue;
+        }
+
+        // Get the DeferredMessage of the remote payload
+        auto* deferred_remote_msg = remote_payload.mutable_deferred_msg();
+
+        // Allocate the memory needed for this and prevent it from going out-of-scope before request completes
+        auto mr = memory::fetch_memory_resource_instance(
+            mrc::codable::decode_memory_type(remote_payload.memory_kind()));
+        buffers.emplace_back(deferred_remote_msg->bytes(), mr);
+
+        deferred_remote_msg->set_address(reinterpret_cast<uintptr_t>(buffers.back().data()));
+        deferred_remote_msg->set_bytes(buffers.back().bytes());
+
+        requests.push_back(data_plane_resources.memory_recv_async(ep,
+                                                                  buffers.back(),
+                                                                  deferred_remote_msg->address(),
+                                                                  deferred_remote_msg->remote_key()));
+    }
+
+    // Now, we need to wait for all requests to be complete
+    data_plane_resources.wait_requests(requests);
+
+    // For the remote descriptor message, send decrement to the remote resources
+    remote_descriptor::DescriptorPullCompletionMessage dec_message;
+    dec_message.object_id = descriptor->proto().object_id();
+
+    // TODO(Peter): Define `ucxx::AmReceiverCallbackInfo` at central place, must be known by all MRC processes.
+    // Send a decrement message using custom AM receiver callback
+
+    co_await data_plane_resources.await_am_send(&dec_message,
+                                                sizeof(remote_descriptor::DescriptorPullCompletionMessage),
+                                                UCS_MEMORY_TYPE_HOST)
+
+        auto decrement_request = ep->amSend(&dec_message,
+                                            sizeof(remote_descriptor::DescriptorPullCompletionMessage),
+                                            UCS_MEMORY_TYPE_HOST,
+                                            ucxx::AmReceiverCallbackInfo("MRC", 0));
+
+    auto instance = std::shared_ptr<Descriptor2>(new Descriptor2(std::move(descriptor), data_plane_resources));
+    instance->m_local_buffers = std::move(buffers);
+    return instance;
+}
+
 void Descriptor2::setup_remote_payloads()
 {
     auto& remote_object = m_encoded_object->proto();
@@ -422,9 +491,10 @@ void Descriptor2::setup_remote_payloads()
         if (!ucx_block.has_value())
         {
             // Need to register the memory
-            ucx_block = m_data_plane_resources.registration_cache3().add_block(deferred_msg->address(),
-                                                                               deferred_msg->bytes(),
-                                                                               mrc::codable::decode_memory_type(payload.memory_kind()));
+            ucx_block = m_data_plane_resources.registration_cache3().add_block(
+                deferred_msg->address(),
+                deferred_msg->bytes(),
+                mrc::codable::decode_memory_type(payload.memory_kind()));
         }
 
         auto remoteKey = ucx_block.value()->createRemoteKey();

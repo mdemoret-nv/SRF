@@ -22,6 +22,7 @@
 #include "mrc/codable/encode.hpp"
 #include "mrc/codable/encoded_object.hpp"
 #include "mrc/codable/encoded_object_proto.hpp"
+#include "mrc/coroutines/task.hpp"
 #include "mrc/memory/memory_block_provider.hpp"
 #include "mrc/type_traits.hpp"  // IWYU pragma: keep
 #include "mrc/types.hpp"
@@ -430,13 +431,23 @@ class Descriptor2 : public std::enable_shared_from_this<Descriptor2>
     [[nodiscard]] const T deserialize();
 
     static std::shared_ptr<Descriptor2> create(std::any value, data_plane::DataPlaneResources2& data_plane_resources);
-    static std::shared_ptr<Descriptor2> create(memory::buffer_view view, data_plane::DataPlaneResources2& data_plane_resources);
+    static std::shared_ptr<Descriptor2> create(memory::buffer_view view,
+                                               data_plane::DataPlaneResources2& data_plane_resources);
+
+    static coroutines::Task<std::shared_ptr<Descriptor2>> await_create(
+        memory::buffer_view view,
+        data_plane::DataPlaneResources2& data_plane_resources);
 
   private:
-    Descriptor2(std::any value, data_plane::DataPlaneResources2& data_plane_resources):
-        m_value(value), m_data_plane_resources(data_plane_resources) {}
-    Descriptor2(std::unique_ptr<codable::DescriptorObjectHandler> encoded_object, data_plane::DataPlaneResources2& data_plane_resources):
-        m_encoded_object(std::move(encoded_object)), m_data_plane_resources(data_plane_resources) {}
+    Descriptor2(std::any value, data_plane::DataPlaneResources2& data_plane_resources) :
+      m_value(value),
+      m_data_plane_resources(data_plane_resources)
+    {}
+    Descriptor2(std::unique_ptr<codable::DescriptorObjectHandler> encoded_object,
+                data_plane::DataPlaneResources2& data_plane_resources) :
+      m_encoded_object(std::move(encoded_object)),
+      m_data_plane_resources(data_plane_resources)
+    {}
 
     void setup_remote_payloads();
     void register_remote_descriptor();
@@ -475,8 +486,8 @@ memory::buffer Descriptor2::serialize(std::shared_ptr<memory::memory_resource> m
 template <typename T>
 [[nodiscard]] const T Descriptor2::deserialize()
 {
-    T return_value = m_value.has_value() ? std::move(std::any_cast<T>(m_value)) :
-                                           std::move(mrc::codable::decode2<T>(*m_encoded_object));
+    T return_value = m_value.has_value() ? std::move(std::any_cast<T>(m_value))
+                                         : std::move(mrc::codable::decode2<T>(*m_encoded_object));
     m_value.reset();
     return std::move(return_value);
 }

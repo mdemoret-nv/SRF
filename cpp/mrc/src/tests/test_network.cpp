@@ -42,6 +42,9 @@
 #include "mrc/codable/decode.hpp"
 #include "mrc/codable/encode.hpp"
 #include "mrc/codable/fundamental_types.hpp"
+#include "mrc/coroutines/sync_wait.hpp"
+#include "mrc/coroutines/task.hpp"
+#include "mrc/coroutines/when_all.hpp"
 #include "mrc/edge/edge_builder.hpp"
 #include "mrc/memory/adaptors.hpp"
 #include "mrc/memory/buffer.hpp"
@@ -64,14 +67,13 @@
 #include "mrc/runtime/remote_descriptor.hpp"
 #include "mrc/types.hpp"
 
+#include <cuda_runtime.h>
 #include <glog/logging.h>
 #include <gtest/gtest.h>
 #include <rxcpp/rx.hpp>
 #include <sys/types.h>
 #include <ucs/memory/memory_type.h>
 #include <ucxx/api.h>
-
-#include <cuda_runtime.h>
 
 #include <atomic>
 #include <cstddef>
@@ -139,8 +141,7 @@ namespace mrc::codable {
 template <typename T>
 struct codable_protocol<std::vector<T>>
 {
-    static void serialize(const std::vector<T>& obj,
-                          mrc::codable::Encoder2<std::vector<T>>& encoder)
+    static void serialize(const std::vector<T>& obj, mrc::codable::Encoder2<std::vector<T>>& encoder)
     {
         // First put in the size
         mrc::codable::encode2(obj.size(), encoder);
@@ -179,8 +180,7 @@ struct codable_protocol<std::vector<T>>
 template <>
 struct codable_protocol<unsigned char*>
 {
-    static void serialize(const unsigned char* obj,
-                          mrc::codable::Encoder2<unsigned char*>& encoder)
+    static void serialize(const unsigned char* obj, mrc::codable::Encoder2<unsigned char*>& encoder)
     {
         size_t size = 64_KiB;  // Assuming a fixed size for this example
         mrc::codable::encode2(size, encoder);
@@ -331,8 +331,9 @@ TEST_F(TestNetwork, Arena)
 //     auto h_buffer_0 = resources->partition(0).host().make_buffer(1_MiB);
 //     auto d_buffer_0 = resources->partition(0).device()->make_buffer(1_MiB);
 
-//     auto h_ucx_block = resources->partition(0).network()->data_plane().registration_cache().lookup(h_buffer_0.data());
-//     auto d_ucx_block = resources->partition(0).network()->data_plane().registration_cache().lookup(d_buffer_0.data());
+//     auto h_ucx_block =
+//     resources->partition(0).network()->data_plane().registration_cache().lookup(h_buffer_0.data()); auto d_ucx_block
+//     = resources->partition(0).network()->data_plane().registration_cache().lookup(d_buffer_0.data());
 
 //     EXPECT_TRUE(h_ucx_block);
 //     EXPECT_TRUE(d_ucx_block);
@@ -629,13 +630,14 @@ TEST_F(TestNetwork, TransferFullDescriptors)
 
     auto send_data_copy = send_data;
 
-    std::shared_ptr<runtime::Descriptor2> send_descriptor = runtime::Descriptor2::create(std::move(send_data_copy), *m_resources);
+    std::shared_ptr<runtime::Descriptor2> send_descriptor = runtime::Descriptor2::create(std::move(send_data_copy),
+                                                                                         *m_resources);
 
     // Check that no remote payloads are yet registered with `DataPlaneResources2`.
     EXPECT_EQ(m_resources->registered_remote_descriptor_count(), 0);
 
     // Get the serialized data
-    auto serialized_data           = send_descriptor->serialize<decltype(send_data)>(memory::malloc_memory_resource::instance());
+    auto serialized_data = send_descriptor->serialize<decltype(send_data)>(memory::malloc_memory_resource::instance());
     auto send_descriptor_object_id = send_descriptor->encoded_object().object_id();
 
     // Check that there is exactly 1 registered descriptor
@@ -654,7 +656,8 @@ TEST_F(TestNetwork, TransferFullDescriptors)
 
     // Acquire the registered descriptor as a `weak_ptr` which we can use to immediately verify to be valid, but
     // invalid once `DataPlaneResources2` releases it.
-    std::weak_ptr<runtime::Descriptor2> registered_send_descriptor = m_resources->get_descriptor(send_descriptor_object_id);
+    std::weak_ptr<runtime::Descriptor2> registered_send_descriptor = m_resources->get_descriptor(
+        send_descriptor_object_id);
     EXPECT_NE(registered_send_descriptor.lock(), nullptr);
 
     // Create a descriptor from the received data
@@ -696,9 +699,13 @@ TEST_F(TestNetwork, TransferFullDescriptorsDevice)
 
     u_int8_t* send_data_device;
     cudaMalloc(&send_data_device, send_data_host.size() * sizeof(u_int8_t));
-    cudaMemcpy(send_data_device, send_data_host.data(), send_data_host.size() * sizeof(u_int8_t), cudaMemcpyHostToDevice);
+    cudaMemcpy(send_data_device,
+               send_data_host.data(),
+               send_data_host.size() * sizeof(u_int8_t),
+               cudaMemcpyHostToDevice);
 
-    std::shared_ptr<runtime::Descriptor2> send_descriptor = runtime::Descriptor2::create(std::move(send_data_device), *m_resources);
+    std::shared_ptr<runtime::Descriptor2> send_descriptor = runtime::Descriptor2::create(std::move(send_data_device),
+                                                                                         *m_resources);
 
     // Check that no remote payloads are yet registered with `DataPlaneResources2`.
     EXPECT_EQ(m_resources->registered_remote_descriptor_count(), 0);
@@ -723,7 +730,8 @@ TEST_F(TestNetwork, TransferFullDescriptorsDevice)
 
     // Acquire the registered descriptor as a `weak_ptr` which we can use to immediately verify to be valid, but
     // invalid once `DataPlaneResources2` releases it.
-    std::weak_ptr<runtime::Descriptor2> registered_send_descriptor = m_resources->get_descriptor(send_descriptor_object_id);
+    std::weak_ptr<runtime::Descriptor2> registered_send_descriptor = m_resources->get_descriptor(
+        send_descriptor_object_id);
     EXPECT_NE(registered_send_descriptor.lock(), nullptr);
 
     // Create a descriptor from the received data
@@ -762,6 +770,105 @@ TEST_F(TestNetwork, TransferFullDescriptorsDevice)
     cudaFree(recv_data_device);
 }
 
+TEST_F(TestNetwork, TransferFullDescriptorsCoro)
+{
+    static_assert(codable::member_decodable<ComplexObject>);
+    static_assert(codable::member_decodable<TransferObject>);
+
+    bool is_running = true;
+
+    // Create a thread to run progress
+    std::thread progress_thread([&]() {
+        VLOG(10) << "Progress thread started";
+        while (is_running)
+        {
+            if (!m_resources->progress())
+            {
+                std::this_thread::yield();
+            }
+        }
+        VLOG(10) << "Progress thread stopped";
+    });
+
+    ComplexObject send_data = {"test", 42, {"test", 42, std::vector<u_int8_t>(64_KiB)}, std::vector<u_int8_t>(8_KiB)};
+
+    auto send_data_copy = send_data;
+
+    std::shared_ptr<runtime::Descriptor2> send_descriptor = runtime::Descriptor2::create(std::move(send_data_copy),
+                                                                                         *m_resources);
+
+    // Check that no remote payloads are yet registered with `DataPlaneResources2`.
+    EXPECT_EQ(m_resources->registered_remote_descriptor_count(), 0);
+
+    // Get the serialized data
+    auto serialized_data = send_descriptor->serialize<decltype(send_data)>(memory::malloc_memory_resource::instance());
+    auto send_descriptor_object_id = send_descriptor->encoded_object().object_id();
+
+    // Check that there is exactly 1 registered descriptor
+    EXPECT_EQ(m_resources->registered_remote_descriptor_count(), 1);
+    EXPECT_EQ(m_resources->registered_remote_descriptor_ptr_count(send_descriptor_object_id), 1);
+
+    send_descriptor = nullptr;
+
+    // auto receive_request = m_resources->am_recv_async(m_loopback_endpoint);
+    // auto send_request    = m_resources->am_send_async(m_loopback_endpoint, serialized_data);
+
+    // while (!send_request->isCompleted() || !receive_request->isCompleted())
+    // {
+    //     m_resources->progress();
+    // }
+
+    coroutines::sync_wait([&]() -> coroutines::Task<> {
+        VLOG(10) << "Waiting for send and receive to complete";
+
+        auto receive_coro = m_resources->await_recv_descriptor(m_loopback_endpoint);
+        auto send_coro    = m_resources->await_am_send(m_loopback_endpoint, serialized_data);
+
+        auto [recv_descriptor, send_request] = co_await coroutines::when_all(std::move(receive_coro),
+                                                                             std::move(send_coro));
+
+        // Finally, get the value
+        // auto recv_data = recv_descriptor->deserialize<ComplexObject>();
+
+        // EXPECT_EQ(send_data, recv_data);
+    }());
+
+    // Acquire the registered descriptor as a `weak_ptr` which we can use to immediately verify to be valid, but
+    // invalid once `DataPlaneResources2` releases it.
+    std::weak_ptr<runtime::Descriptor2> registered_send_descriptor = m_resources->get_descriptor(
+        send_descriptor_object_id);
+    EXPECT_NE(registered_send_descriptor.lock(), nullptr);
+
+    // // Create a descriptor from the received data
+    // auto buffer_view = memory::buffer_view(receive_request->getRecvBuffer()->data(),
+    //                                        receive_request->getRecvBuffer()->getSize(),
+    //                                        mrc::memory::memory_kind::host);
+
+    // std::shared_ptr<runtime::Descriptor2> recv_descriptor = runtime::Descriptor2::create(buffer_view, *m_resources);
+    // uint64_t recv_descriptor_object_id = recv_descriptor->encoded_object().object_id();
+
+    // EXPECT_EQ(send_descriptor_object_id, recv_descriptor_object_id);
+
+    // // TODO(Peter): This is now completely async and we must progress the worker, we need a timeout in case it fails
+    // to
+    // // complete.
+    // // Wait for remote decrement messages.
+    // while (registered_send_descriptor.lock() != nullptr)
+    //     m_resources->progress();
+
+    // // Redundant with the above, but clarify intent.
+    // EXPECT_EQ(registered_send_descriptor.lock(), nullptr);
+
+    // Check all remote payloads have been deregistered, including the one previously transferred.
+    EXPECT_EQ(m_resources->registered_remote_descriptor_count(), 0);
+    EXPECT_THROW(m_resources->registered_remote_descriptor_ptr_count(send_descriptor_object_id), std::out_of_range);
+
+    // // Finally, get the value
+    // auto recv_data = recv_descriptor->deserialize<decltype(send_data)>();
+
+    // EXPECT_EQ(send_data, recv_data);
+}
+
 TEST_F(TestNetwork, TransferFullDescriptorsBroadcast)
 {
     // Create resources to simulate remote processes
@@ -784,7 +891,8 @@ TEST_F(TestNetwork, TransferFullDescriptorsBroadcast)
     auto send_data_copy = send_data;
 
     // Create a descriptor
-    std::shared_ptr<runtime::Descriptor2> send_descriptor = runtime::Descriptor2::create(std::move(send_data_copy), *m_resources);
+    std::shared_ptr<runtime::Descriptor2> send_descriptor = runtime::Descriptor2::create(std::move(send_data_copy),
+                                                                                         *m_resources);
 
     // Check that no remote payloads are yet registered with `DataPlaneResources2`.
     EXPECT_EQ(m_resources->registered_remote_descriptor_count(), 0);
@@ -815,13 +923,14 @@ TEST_F(TestNetwork, TransferFullDescriptorsBroadcast)
 
         // Acquire the registered descriptor as a `weak_ptr` which we can use to immediately verify to be valid, but
         // invalid once `DataPlaneResources2` releases it.
-        std::weak_ptr<runtime::Descriptor2> registered_send_descriptor = m_resources->get_descriptor(send_descriptor_object_id);
+        std::weak_ptr<runtime::Descriptor2> registered_send_descriptor = m_resources->get_descriptor(
+            send_descriptor_object_id);
         EXPECT_NE(registered_send_descriptor.lock(), nullptr);
 
         // Create a descriptor from the received data
         auto buffer_view = memory::buffer_view(receive_request->getRecvBuffer()->data(),
-                                              receive_request->getRecvBuffer()->getSize(),
-                                              mrc::memory::memory_kind::host);
+                                               receive_request->getRecvBuffer()->getSize(),
+                                               mrc::memory::memory_kind::host);
         std::shared_ptr<runtime::Descriptor2> recv_descriptor = runtime::Descriptor2::create(buffer_view, *m_resources);
         uint64_t recv_descriptor_object_id                    = recv_descriptor->encoded_object().object_id();
 
@@ -895,10 +1004,13 @@ TEST_P(TestNetworkPressure, TransferPressureControl)
         {
             auto send_data_copy = send_data;
 
-            std::shared_ptr<runtime::Descriptor2> send_descriptor = runtime::Descriptor2::create(std::move(send_data_copy), *m_resources);
+            std::shared_ptr<runtime::Descriptor2> send_descriptor = runtime::Descriptor2::create(
+                std::move(send_data_copy),
+                *m_resources);
 
             // Get the serialized data and push to queue for consumption by request processing thread
-            serialized_data.push(send_descriptor->serialize<decltype(send_data)>(memory::malloc_memory_resource::instance()));
+            serialized_data.push(
+                send_descriptor->serialize<decltype(send_data)>(memory::malloc_memory_resource::instance()));
             send_descriptor_object_ids.push(send_descriptor->encoded_object().object_id());
 
             send_descriptor = nullptr;
@@ -908,17 +1020,16 @@ TEST_P(TestNetworkPressure, TransferPressureControl)
         registration_finished = true;
     };
 
-    auto increase_max_descriptors =
-        [this, max_descriptors, total_descriptors, &registered_descriptors]() {
-            // Wait until registration hits max number of descriptors and blocks
-            while (registered_descriptors < max_descriptors)
-            {
-                ;
-            }
+    auto increase_max_descriptors = [this, max_descriptors, total_descriptors, &registered_descriptors]() {
+        // Wait until registration hits max number of descriptors and blocks
+        while (registered_descriptors < max_descriptors)
+        {
+            ;
+        }
 
-            // Unblock `register_descriptors` immediately, even if requests are not being processed
-            m_resources->set_max_remote_descriptors(total_descriptors);
-        };
+        // Unblock `register_descriptors` immediately, even if requests are not being processed
+        m_resources->set_max_remote_descriptors(total_descriptors);
+    };
 
     auto process_request = [this,
                             &send_data,
@@ -940,7 +1051,7 @@ TEST_P(TestNetworkPressure, TransferPressureControl)
         serialized_data.pop();
 
         auto receive_request = m_resources->am_recv_async(m_loopback_endpoint);
-        auto send_request = m_resources->am_send_async(m_loopback_endpoint, local_serialized_data);
+        auto send_request    = m_resources->am_send_async(m_loopback_endpoint, local_serialized_data);
 
         while (!send_request->isCompleted() || !receive_request->isCompleted())
         {
@@ -958,11 +1069,10 @@ TEST_P(TestNetworkPressure, TransferPressureControl)
         EXPECT_NE(registered_send_descriptor.lock(), nullptr);
 
         // Create a remote descriptor from the received data
-        auto recv_descriptor = runtime::Descriptor2::create(
-            {receive_request->getRecvBuffer()->data(),
-             receive_request->getRecvBuffer()->getSize(),
-             mrc::memory::memory_kind::host},
-            *m_resources);
+        auto recv_descriptor = runtime::Descriptor2::create({receive_request->getRecvBuffer()->data(),
+                                                             receive_request->getRecvBuffer()->getSize(),
+                                                             mrc::memory::memory_kind::host},
+                                                            *m_resources);
 
         auto recv_descriptor_object_id = recv_descriptor->encoded_object().object_id();
 

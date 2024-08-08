@@ -430,7 +430,7 @@ coroutines::Task<std::shared_ptr<ucxx::Request>> DataPlaneResources2::await_am_s
     auto request = endpoint->amSend(const_cast<void*>(addr),
                                     bytes,
                                     mem_type,
-                                    std::nullopt,
+                                    ucxx::AmReceiverCallbackInfo("MRC", 0),
                                     false,
                                     [&event](ucs_status_t status, std::shared_ptr<void> data) {
                                         VLOG(10) << "AM send callback with status " << status << "("
