@@ -423,19 +423,24 @@ coroutines::Task<std::shared_ptr<ucxx::Request>> DataPlaneResources2::await_am_s
     std::size_t bytes,
     ucs_memory_type_t mem_type)
 {
+    VLOG(10) << "Awaiting AM send";
     coroutines::Event event;
 
     // Const cast away because UCXX only accepts void*
     auto request = endpoint->amSend(const_cast<void*>(addr),
                                     bytes,
                                     mem_type,
-                                    ucxx::AmReceiverCallbackInfo("MRC", 1),
+                                    std::nullopt,
                                     false,
                                     [&event](ucs_status_t status, std::shared_ptr<void> data) {
+                                        VLOG(10) << "AM send callback with status " << status << "("
+                                                 << ucs_status_string(status) << ")";
                                         event.set();
                                     });
 
     co_await event;
+
+    VLOG(10) << "AM send completed";
 
     co_return request;
 }
@@ -443,13 +448,17 @@ coroutines::Task<std::shared_ptr<ucxx::Request>> DataPlaneResources2::await_am_s
 coroutines::Task<std::shared_ptr<ucxx::Request>> DataPlaneResources2::await_am_recv(
     std::shared_ptr<ucxx::Endpoint> endpoint)
 {
+    VLOG(10) << "Awaiting AM recv";
     coroutines::Event event;
 
     auto request = endpoint->amRecv(false, [&event](ucs_status_t status, std::shared_ptr<void> data) {
+        VLOG(10) << "AM recv callback with status " << status << "(" << ucs_status_string(status) << ")";
         event.set();
     });
 
     co_await event;
+
+    VLOG(10) << "AM recv completed";
 
     co_return request;
 }
