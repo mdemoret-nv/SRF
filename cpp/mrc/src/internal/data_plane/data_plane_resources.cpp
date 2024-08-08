@@ -27,6 +27,7 @@
 #include "internal/ucx/utils.hpp"
 #include "internal/ucx/worker.hpp"
 
+#include "mrc/coroutines/event.hpp"
 #include "mrc/memory/literals.hpp"
 #include "mrc/memory/resources/host/malloc_memory_resource.hpp"
 
@@ -187,7 +188,7 @@ DataPlaneResources2::DataPlaneResources2()
                        << ucs_status_string(status) << ")";
         }
 
-        auto mr = memory::malloc_memory_resource::instance();
+        auto mr     = memory::malloc_memory_resource::instance();
         auto buffer = memory::buffer(req->getRecvBuffer()->getSize(), mr);
 
         std::memcpy(buffer.data(), req->getRecvBuffer()->data(), req->getRecvBuffer()->getSize());
@@ -325,7 +326,7 @@ std::shared_ptr<ucxx::Request> DataPlaneResources2::memory_recv_async(std::share
                                                                       const std::string& serialized_rkey)
 {
     // Const cast away because UCXX only accepts void*
-    auto rkey = ucxx::createRemoteKeyFromSerialized(endpoint, serialized_rkey);
+    auto rkey    = ucxx::createRemoteKeyFromSerialized(endpoint, serialized_rkey);
     auto request = endpoint->memGet(addr, bytes, rkey);
 
     return request;
@@ -381,7 +382,14 @@ std::shared_ptr<ucxx::Request> DataPlaneResources2::am_send_async(std::shared_pt
     // TODO(MDD): Check that this EP belongs to this resource
 
     // Const cast away because UCXX only accepts void*
-    auto request = endpoint->amSend(const_cast<void*>(addr), bytes, mem_type, ucxx::AmReceiverCallbackInfo("MRC", 1));
+    auto request = endpoint->amSend(const_cast<void*>(addr),
+                                    bytes,
+                                    mem_type,
+                                    ucxx::AmReceiverCallbackInfo("MRC", 1),
+                                    [](ucs_status_t status, std::shared_ptr<void> data) {
+                                        VLOG(10) << "AM Send completed with status " << status << "("
+                                                 << ucs_status_string(status) << ")";
+                                    });
 
     return request;
 }
@@ -399,25 +407,70 @@ uint64_t DataPlaneResources2::get_next_object_id()
     return m_next_object_id++;
 }
 
-coroutines::Task<std::shared_ptr<memory::buffer>> DataPlaneResources2::await_recv()
+coroutines::Task<std::shared_ptr<ucxx::Request>> DataPlaneResources2::await_am_send(
+    std::shared_ptr<ucxx::Endpoint> endpoint,
+    memory::const_buffer_view buffer_view)
 {
-    co_await m_descriptor_event;
+    co_return co_await this->await_am_send(endpoint,
+                                           buffer_view.data(),
+                                           buffer_view.bytes(),
+                                           ucx::to_ucs_memory_type(buffer_view.kind()));
+}
 
-    std::unique_lock lock(m_remote_descriptors_mutex);
-    auto buffer = m_recv_buffers.front();
-    m_recv_buffers.pop();
+coroutines::Task<std::shared_ptr<ucxx::Request>> DataPlaneResources2::await_am_send(
+    std::shared_ptr<ucxx::Endpoint> endpoint,
+    const void* addr,
+    std::size_t bytes,
+    ucs_memory_type_t mem_type)
+{
+    coroutines::Event event;
 
-    if (m_recv_buffers.empty())
-    {
-        m_descriptor_event.reset();
-    }
+    // Const cast away because UCXX only accepts void*
+    auto request = endpoint->amSend(const_cast<void*>(addr),
+                                    bytes,
+                                    mem_type,
+                                    ucxx::AmReceiverCallbackInfo("MRC", 1),
+                                    false,
+                                    [&event](ucs_status_t status, std::shared_ptr<void> data) {
+                                        event.set();
+                                    });
 
-    co_return buffer;
+    co_await event;
+
+    co_return request;
+}
+
+coroutines::Task<std::shared_ptr<ucxx::Request>> DataPlaneResources2::await_am_recv(
+    std::shared_ptr<ucxx::Endpoint> endpoint)
+{
+    coroutines::Event event;
+
+    auto request = endpoint->amRecv(false, [&event](ucs_status_t status, std::shared_ptr<void> data) {
+        event.set();
+    });
+
+    co_await event;
+
+    co_return request;
+}
+
+coroutines::Task<std::shared_ptr<runtime::Descriptor2>> DataPlaneResources2::await_recv_descriptor(
+    std::shared_ptr<ucxx::Endpoint> endpoint)
+{
+    auto receive_request = co_await this->await_am_recv(endpoint);
+
+    auto recv_descriptor = runtime::Descriptor2::create({receive_request->getRecvBuffer()->data(),
+                                                         receive_request->getRecvBuffer()->getSize(),
+                                                         mrc::memory::memory_kind::host},
+                                                        *this);
+
+    co_return recv_descriptor;
 }
 
 uint64_t DataPlaneResources2::register_remote_descriptor(std::shared_ptr<runtime::Descriptor2> descriptor)
 {
-    // If the descriptor has an object_id > 0, the descriptor has already been registered and should not be re-registered
+    // If the descriptor has an object_id > 0, the descriptor has already been registered and should not be
+    // re-registered
     auto object_id = descriptor->encoded_object().object_id();
     if (object_id > 0)
     {

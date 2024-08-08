@@ -202,7 +202,17 @@ class DataPlaneResources2
                                                  ucs_memory_type_t mem_type);
     std::shared_ptr<ucxx::Request> am_recv_async(std::shared_ptr<ucxx::Endpoint> endpoint);
 
-    coroutines::Task<std::shared_ptr<memory::buffer>> await_recv();
+    coroutines::Task<std::shared_ptr<ucxx::Request>> await_am_send(std::shared_ptr<ucxx::Endpoint> endpoint,
+                                                                   memory::const_buffer_view buffer_view);
+    coroutines::Task<std::shared_ptr<ucxx::Request>> await_am_send(std::shared_ptr<ucxx::Endpoint> endpoint,
+                                                                   const void* addr,
+                                                                   std::size_t bytes,
+                                                                   ucs_memory_type_t mem_type);
+
+    coroutines::Task<std::shared_ptr<ucxx::Request>> await_am_recv(std::shared_ptr<ucxx::Endpoint> endpoint);
+
+    coroutines::Task<std::shared_ptr<runtime::Descriptor2>> await_recv_descriptor(
+        std::shared_ptr<ucxx::Endpoint> endpoint);
 
     uint64_t register_remote_descriptor(std::shared_ptr<runtime::Descriptor2> descriptor);
     uint64_t registered_remote_descriptor_count();

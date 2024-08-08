@@ -17,14 +17,15 @@
 
 #include "internal/data_plane/data_plane_resources.hpp"
 
+#include "mrc/benchmarking/segment_watcher.hpp"
+#include "mrc/benchmarking/tracer.hpp"
+#include "mrc/benchmarking/util.hpp"
 #include "mrc/codable/codable_protocol.hpp"
 #include "mrc/codable/decode.hpp"
 #include "mrc/codable/encode.hpp"
 #include "mrc/codable/fundamental_types.hpp"
 #include "mrc/coroutines/sync_wait.hpp"
-#include "mrc/benchmarking/segment_watcher.hpp"
-#include "mrc/benchmarking/tracer.hpp"
-#include "mrc/benchmarking/util.hpp"
+#include "mrc/coroutines/task.hpp"
 #include "mrc/memory/literals.hpp"
 #include "mrc/memory/memory_kind.hpp"
 #include "mrc/memory/resources/host/malloc_memory_resource.hpp"
@@ -32,15 +33,15 @@
 #include "mrc/memory/resources/memory_resource.hpp"
 #include "mrc/runtime/remote_descriptor.hpp"
 
-#include <iostream>
-#include <cuda_runtime.h>
 #include <benchmark/benchmark.h>
+#include <cuda_runtime.h>
 #include <gtest/gtest.h>
 #include <rxcpp/rx.hpp>
 #include <ucxx/api.h>
 
 #include <any>
 #include <coroutine>
+#include <iostream>
 #include <vector>
 
 using namespace mrc;
@@ -66,8 +67,8 @@ class DataPlaneResources2Tester : public data_plane::DataPlaneResources2
  */
 class ProgressEngine
 {
-public:
-    ProgressEngine(DataPlaneResources2Tester& resources): m_resources(resources) {}
+  public:
+    ProgressEngine(DataPlaneResources2Tester& resources) : m_resources(resources) {}
 
     void start_progress()
     {
@@ -76,7 +77,7 @@ public:
             while (m_is_running)
             {
                 m_resources.progress();
-                m_progress_cv.wait_for(lock, std::chrono::milliseconds(1)); // Sleep to reduce busy-waiting
+                m_progress_cv.wait_for(lock, std::chrono::milliseconds(1));  // Sleep to reduce busy-waiting
             }
         });
     }
@@ -84,11 +85,11 @@ public:
     void end_progress()
     {
         m_is_running = false;
-        m_progress_cv.notify_all(); // Wake up the progress thread to exit
+        m_progress_cv.notify_all();  // Wake up the progress thread to exit
         m_progress_thread.join();
     }
 
-private:
+  private:
     DataPlaneResources2Tester& m_resources;
 
     std::atomic<bool> m_is_running = true;
@@ -106,8 +107,7 @@ namespace mrc::codable {
 template <typename T>
 struct codable_protocol<std::vector<T>>
 {
-    static void serialize(const std::vector<T>& obj,
-                          mrc::codable::Encoder2<std::vector<T>>& encoder)
+    static void serialize(const std::vector<T>& obj, mrc::codable::Encoder2<std::vector<T>>& encoder)
     {
         // First put in the size
         mrc::codable::encode2(obj.size(), encoder);
@@ -142,8 +142,7 @@ struct codable_protocol<std::vector<T>>
 template <>
 struct codable_protocol<unsigned char*>
 {
-    static void serialize(const unsigned char* obj,
-                          mrc::codable::Encoder2<unsigned char*>& encoder)
+    static void serialize(const unsigned char* obj, mrc::codable::Encoder2<unsigned char*>& encoder)
     {
         // First put in the size
         mrc::codable::encode2(data_size, encoder);
@@ -168,15 +167,15 @@ struct codable_protocol<unsigned char*>
 
 struct IObject
 {
-    virtual ~IObject() = default;
-    virtual std::any get_object() = 0;
+    virtual ~IObject()                               = default;
+    virtual std::any get_object()                    = 0;
     virtual void register_buffer(std::any recv_data) = 0;
 };
 
 class HostObject final : public IObject
 {
   public:
-    HostObject(std::vector<u_int8_t> obj): m_obj(std::move(obj)) {}
+    HostObject(std::vector<u_int8_t> obj) : m_obj(std::move(obj)) {}
 
     std::any get_object() override
     {
@@ -226,7 +225,7 @@ class DescriptorFixture : public benchmark::Fixture
   public:
     void SetUp(const benchmark::State& state) override
     {
-        cudaSetDevice(0); // Ensure the CUDA context is initialized
+        cudaSetDevice(0);  // Ensure the CUDA context is initialized
 
         m_resources = std::make_unique<DataPlaneResources2Tester>();
 
@@ -243,13 +242,13 @@ class DescriptorFixture : public benchmark::Fixture
             std::vector<u_int8_t> send_data(data_size);
             switch (m_kind)
             {
-                case memory::memory_kind::host:
-                    m_obj.emplace_back(std::unique_ptr<IObject>(new HostObject(send_data)));
-                    break;
+            case memory::memory_kind::host:
+                m_obj.emplace_back(std::unique_ptr<IObject>(new HostObject(send_data)));
+                break;
 
-                case memory::memory_kind::device:
-                    m_obj.emplace_back(std::unique_ptr<IObject>(new DeviceObject(send_data)));
-                    break;
+            case memory::memory_kind::device:
+                m_obj.emplace_back(std::unique_ptr<IObject>(new DeviceObject(send_data)));
+                break;
             }
         }
     }
@@ -269,7 +268,7 @@ class DescriptorFixture : public benchmark::Fixture
 
         std::vector<std::weak_ptr<runtime::Descriptor2>> registered_send_descriptors;
         auto send_thread = std::thread([&]() {
-            cudaSetDevice(0); // Ensure the CUDA context is initialized
+            cudaSetDevice(0);  // Ensure the CUDA context is initialized
 
             // Store send_requests to check for completion after all messages are sent to achieve async sending
             // The serialized_buffers must also remain in-scope until the send_requests are completed
@@ -279,11 +278,12 @@ class DescriptorFixture : public benchmark::Fixture
             for (size_t i = 0; i < messages_to_send; ++i)
             {
                 auto send_data = std::any_cast<std::reference_wrapper<T>>(m_obj[i]->get_object()).get();
-                std::shared_ptr<runtime::Descriptor2> send_descriptor = runtime::Descriptor2::create(std::move(send_data),
-                                                                                                     *m_resources);
+                std::shared_ptr<runtime::Descriptor2> send_descriptor = runtime::Descriptor2::create(
+                    std::move(send_data),
+                    *m_resources);
 
                 // Get the serialized data
-                auto serialized_data           = send_descriptor->serialize<T>(memory::malloc_memory_resource::instance());
+                auto serialized_data = send_descriptor->serialize<T>(memory::malloc_memory_resource::instance());
                 auto send_descriptor_object_id = send_descriptor->encoded_object().object_id();
 
                 send_descriptor = nullptr;
@@ -291,22 +291,38 @@ class DescriptorFixture : public benchmark::Fixture
                 send_requests.push_back(m_resources->am_send_async(m_loopback_endpoint, serialized_data));
                 serialized_buffers.push_back(std::move(serialized_data));
 
-                // Acquire the registered descriptor as a `weak_ptr` which we can use to immediately verify to be valid, but
-                // invalid once `DataPlaneResources2` releases it
+                // Acquire the registered descriptor as a `weak_ptr` which we can use to immediately verify to be valid,
+                // but invalid once `DataPlaneResources2` releases it
                 registered_send_descriptors.push_back(m_resources->get_descriptor(send_descriptor_object_id));
             }
         });
 
-        // Received and process messages
-        for (size_t i = 0; i < messages_to_send; i++) {
-            std::shared_ptr<memory::buffer> buffer = coroutines::sync_wait(m_resources->await_recv());
+        // auto rec_requests = [&]() -> coroutines::Task<> {
+        //     for (size_t i = 0; i < messages_to_send; i++)
+        //     {
+        //         auto recv_descriptor = co_await m_resources->await_recv_descriptor(m_loopback_endpoint);
 
-            auto recv_descriptor = runtime::Descriptor2::create(*buffer, *m_resources);
+        //         auto recv_data = recv_descriptor->template deserialize<T>();
 
-            auto recv_data = recv_descriptor->deserialize<T>();
+        //         m_obj[i]->register_buffer(recv_data);
+        //     }
 
-            m_obj[i]->register_buffer(recv_data);
-        }
+        //     co_return;
+        // };
+
+        // coroutines::sync_wait(rec_requests());
+
+        // // Received and process messages
+        // for (size_t i = 0; i < messages_to_send; i++)
+        // {
+        //     std::shared_ptr<memory::buffer> buffer = coroutines::sync_wait(m_resources->await_am_recv());
+
+        //     auto recv_descriptor = runtime::Descriptor2::create(*buffer, *m_resources);
+
+        //     auto recv_data = recv_descriptor->deserialize<T>();
+
+        //     m_obj[i]->register_buffer(recv_data);
+        // }
 
         // Wait for remote decrement messages
         // This loop also guarantees that all send_requests and recv_requests have been completed
@@ -314,7 +330,7 @@ class DescriptorFixture : public benchmark::Fixture
         {
             while (registered_send_descriptor.lock() != nullptr)
             {
-                std::this_thread::yield(); // Yield to avoid busy-waiting
+                std::this_thread::yield();  // Yield to avoid busy-waiting
             }
         }
 
@@ -354,8 +370,8 @@ BENCHMARK_DEFINE_F(DescriptorFixture, descriptor_latency)(benchmark::State& stat
         total_time += (end - start);
     }
 
-    state.counters["average_latency"] = total_time.count() / messages_to_send;
-    state.counters["bytes_per_second"] = messages_to_send * data_size * state.iterations() / total_time.count();
+    state.counters["average_latency"]     = total_time.count() / messages_to_send;
+    state.counters["bytes_per_second"]    = messages_to_send * data_size * state.iterations() / total_time.count();
     state.counters["messages_per_second"] = messages_to_send * state.iterations() / total_time.count();
 }
 
@@ -367,15 +383,15 @@ BENCHMARK_DEFINE_F(DescriptorFixture, descriptor_latency)(benchmark::State& stat
 // Benchmark device memory with range of messages_to_send
 BENCHMARK_REGISTER_F(DescriptorFixture, descriptor_latency)
     ->ArgsProduct({
-        {static_cast<int>(memory::memory_kind::device)}, // memory type
-        benchmark::CreateRange(1, 1000, /*multi=*/10),   // number of messages to send
+        {static_cast<int>(memory::memory_kind::device)},  // memory type
+        benchmark::CreateRange(1, 1000, /*multi=*/10),    // number of messages to send
     })
     ->Iterations(1);
 
 // Benchmark host memory with range of messages_to_send
 BENCHMARK_REGISTER_F(DescriptorFixture, descriptor_latency)
     ->ArgsProduct({
-        {static_cast<int>(memory::memory_kind::host)}, // memory type
-        benchmark::CreateRange(1, 1000, /*multi=*/10),   // number of messages to send
+        {static_cast<int>(memory::memory_kind::host)},  // memory type
+        benchmark::CreateRange(1, 1000, /*multi=*/10),  // number of messages to send
     })
     ->Iterations(1);
