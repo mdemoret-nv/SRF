@@ -50,7 +50,7 @@ TEST_F(TestStringUtils, TestSplitStringToVector)
 
     for (const auto& value : values)
     {
-        auto result = mrc::split_string_to_vector(value.str, value.delimiter);
+        auto result = utils::split_string_to_vector(value.str, value.delimiter);
         EXPECT_EQ(result, value.expected_result);
     }
 }

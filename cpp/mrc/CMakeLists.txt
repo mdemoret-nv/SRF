@@ -169,6 +169,7 @@ add_library(libmrc
   src/public/runnable/types.cpp
   src/public/runtime/remote_descriptor.cpp
   src/public/utils/bytes_to_string.cpp
+  src/public/utils/library_utils.cpp
   src/public/utils/string_utils.cpp
   src/public/utils/thread_utils.cpp
   src/public/utils/type_utils.cpp
@@ -191,6 +192,7 @@ target_link_libraries(libmrc
     gRPC::grpc++
     gRPC::grpc
     gRPC::gpr
+    ucxx::ucxx
   PRIVATE
     hwloc::hwloc
     prometheus-cpp::core # private in MR !199

@@ -19,6 +19,8 @@ if (VERBOSE)
   morpheus_utils_print_config()
 endif()
 
+include(${CMAKE_CURRENT_LIST_DIR}/Configure_UCXX.cmake)
+
 morpheus_utils_initialize_cpm(MRC_CACHE_DIR)
 
 # Start with CUDA. Need to add it to our export set
@@ -113,6 +115,10 @@ rapids_find_package(NodeJs REQUIRED
   BUILD_EXPORT_SET ${PROJECT_NAME}-core-exports
   INSTALL_EXPORT_SET ${PROJECT_NAME}-core-exports
 )
+
+# UCXX
+# ====
+morpheus_utils_configure_UCXX()
 
 if(MRC_BUILD_BENCHMARKS)
   # google benchmark

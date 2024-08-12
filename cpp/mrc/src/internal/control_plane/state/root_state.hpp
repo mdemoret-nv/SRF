@@ -168,7 +168,7 @@ struct ResourceState : public ControlPlaneStateBase
 
     ResourceActualStatus actual_status() const;
 
-    int32_t ref_count() const;
+    // int32_t ref_count() const;
 
   private:
     const protos::ResourceState& m_message;

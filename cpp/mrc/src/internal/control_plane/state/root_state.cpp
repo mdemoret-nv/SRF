@@ -155,10 +155,10 @@ ResourceActualStatus ResourceState::actual_status() const
     return static_cast<ResourceActualStatus>(m_message.actual_status());
 }
 
-int32_t ResourceState::ref_count() const
-{
-    return m_message.ref_count();
-}
+// int32_t ResourceState::ref_count() const
+// {
+//     return m_message.ref_count();
+// }
 
 // Connection::Connection(std::shared_ptr<ControlPlaneNormalizedState> state, const protos::Connection& message) :
 //   ControlPlaneStateBase(message),
