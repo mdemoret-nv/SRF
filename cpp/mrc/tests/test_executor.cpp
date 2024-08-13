@@ -156,7 +156,7 @@ class TestExecutor : public ::testing::Test
     static std::unique_ptr<Options> make_options()
     {
         auto options = std::make_unique<Options>();
-        options->topology().user_cpuset("0");
+        options->topology().user_cpuset("0-3");
         options->topology().restrict_gpus(true);
         options->placement().resources_strategy(PlacementResources::Dedicated);
         return options;
