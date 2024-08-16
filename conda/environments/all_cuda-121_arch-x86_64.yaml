@@ -35,7 +35,7 @@ dependencies:
 - libclang=16
 - libgrpc=1.59
 - libhwloc=2.9.2
-- librmm=24.02
+- librmm=24.06
 - libxml2=2.11.6
 - llvmdev=16
 - ninja=1.11
@@ -51,7 +51,7 @@ dependencies:
 - pytest-timeout
 - python-graphviz
 - python=3.10
-- scikit-build=0.17
-- ucx=1.15
+- scikit-build>=0.17
+- ucx>=1.15
 - yapf
 name: all_cuda-121_arch-x86_64

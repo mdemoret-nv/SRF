@@ -26,10 +26,10 @@ dependencies:
 - include-what-you-use=0.20
 - libgrpc=1.59
 - libhwloc=2.9.2
-- librmm=24.02
-- libxml2=2.11.6
-- ninja=1.11
-- nlohmann_json=3.11
+- librmm=24.04
+- ninja=1.10
+- nlohmann_json=3.9
+- nodejs=18
 - numactl-libs-cos7-x86_64
 - pkg-config=0.29
 - pre-commit
@@ -39,6 +39,7 @@ dependencies:
 - pytest-timeout
 - python-graphviz
 - python=3.10
-- scikit-build=0.17
-- ucx=1.15
-name: ci_cuda-121_arch-x86_64
+- scikit-build>=0.17
+- ucx>=1.15
+- yapf
+name: ci_cuda-118_arch-x86_64

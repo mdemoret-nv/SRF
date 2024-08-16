@@ -629,4 +629,8 @@ channel::Egress<std::unique_ptr<runtime::RemoteDescriptor2>>& DataPlaneResources
 //     return request;
 // }
 
+std::shared_ptr<runtime::RemoteDescriptorImpl2> DataPlaneResources2::get_descriptor(uint64_t object_id)
+{
+    return m_remote_descriptor_by_id.at(object_id);
+}
 }  // namespace mrc::data_plane
