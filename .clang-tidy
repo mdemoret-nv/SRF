@@ -26,7 +26,6 @@ WarningsAsErrors: >
   -clang-diagnostic-ignored-optimization-argument
 
 HeaderFilterRegex: '.*\/include\/mrc\/.*'
-AnalyzeTemporaryDtors: false
 FormatStyle: file
 CheckOptions:
   - key: cert-dcl16-c.NewSuffixes

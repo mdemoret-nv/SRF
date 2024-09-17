@@ -23,12 +23,16 @@
 
 #include <boost/fiber/buffered_channel.hpp>
 #include <boost/fiber/future/future.hpp>
+#include <boost/fiber/future/promise.hpp>
 #include <pybind11/pytypes.h>
 
 #include <atomic>
+#include <condition_variable>
+#include <functional>
 #include <future>  // for future & promise
 #include <memory>
 #include <mutex>
+#include <utility>
 
 namespace mrc {
 class Options;
@@ -74,39 +78,100 @@ class Awaitable : public std::enable_shared_from_this<Awaitable>
     std::vector<std::tuple<PyObjectHolder, PyObjectHolder>> m_callbacks;
 };
 
-class PyBoostPromise : public std::enable_shared_from_this<PyBoostPromise>
+class PyAsyncPromise;
+
+struct PySharedState
+{
+    pybind11::object get_result();
+
+    // State m_state{State::Pending};
+    bool m_is_ready{false};
+
+    std::mutex m_mutex;
+    std::condition_variable m_cv;
+
+    // PyObjectHolder m_loop;
+
+    PyObjectHolder m_result;
+    std::exception_ptr m_exception;
+};
+
+class PyAsyncFuture : public std::enable_shared_from_this<PyAsyncFuture>
 {
   public:
-    PyBoostPromise();
+    bool asyncio_future_blocking{true};
 
     // Future interface
-    std::shared_ptr<PyBoostPromise> iter();
+    std::shared_ptr<PyAsyncFuture> iter();
 
-    std::shared_ptr<PyBoostPromise> await();
+    std::shared_ptr<PyAsyncFuture> await();
 
-    std::shared_ptr<PyBoostPromise> next();
+    std::shared_ptr<PyAsyncFuture> next();
+
+    pybind11::object result();
+
+    pybind11::object exception();
 
     pybind11::object get_loop() const;
 
     void add_done_callback(pybind11::object callback, pybind11::object context);
 
-    bool asyncio_future_blocking{false};
+  private:
+    PyAsyncFuture(std::shared_ptr<PyAsyncPromise> parent);
+
+    std::shared_ptr<PyAsyncPromise> m_parent;
+
+    PyObjectHolder m_loop;
+
+    friend class PyAsyncPromise;
+};
+
+class PyAsyncPromise : public std::enable_shared_from_this<PyAsyncPromise>
+{
+  public:
+    enum class State
+    {
+        Pending = 0,
+        Cancelled,
+        Finished
+    };
+
+    PyAsyncPromise();
+
+    /**
+     * @brief Gets a future object which can be awaited on in python using Asyncio. Requires a running loop on the
+     * current thread.
+     *
+     * @return std::shared_ptr<PyAsyncFuture>
+     */
+    std::shared_ptr<PyAsyncFuture> await();
+
+    void add_done_callback(std::function<void()> callback);
 
     pybind11::object result();
+
+    pybind11::object exception();
 
     void set_result(pybind11::object&& obj);
 
     void set_exception(std::exception_ptr&& e);
 
   private:
+    pybind11::object get_result(std::unique_lock<std::mutex>& lock);
+
     void schedule_callbacks();
 
-    std::promise<pybind11::object> m_promise{};
-    std::future<pybind11::object> m_future{};
+    State m_state{State::Pending};
 
-    PyObjectHolder m_loop;
+    std::mutex m_mutex;
+    std::condition_variable m_cv;
 
-    std::vector<std::tuple<PyObjectHolder, PyObjectHolder>> m_callbacks;
+    PyObjectHolder m_result;
+    std::exception_ptr m_exception;
+
+    std::vector<std::function<void()>> m_callbacks;
+
+    friend class PyAsyncFuture;
 };
 
 class Executor
@@ -121,7 +186,7 @@ class Executor
     void start();
     void stop();
     void join();
-    std::shared_ptr<PyBoostPromise> join_async();
+    std::shared_ptr<PyAsyncPromise> join_async();
 
     std::shared_ptr<pipeline::IExecutor> get_executor() const;
 
@@ -153,12 +218,13 @@ class Executor
         return future;
     }
 
+    std::shared_ptr<PyAsyncPromise> m_join_promise;
     SharedFuture<void> m_join_future;
     // std::shared_future<void> m_join_future2;
 
     std::mutex m_mutex;
     std::thread m_join_thread;
-    std::vector<std::shared_ptr<PyBoostPromise>> m_join_promises;
+    // std::vector<std::shared_ptr<PyBoostPromise>> m_join_promises;
 
     std::atomic_int m_pending_work_count{0};
     boost::fibers::buffered_channel<boost::fibers::packaged_task<void()>> m_work_queue;

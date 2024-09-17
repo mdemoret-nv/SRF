@@ -55,61 +55,87 @@ PYBIND11_MODULE(executor, py_mod)
     pymrc::import(py_mod, "mrc.core.options");
     pymrc::import(py_mod, "mrc.core.pipeline");
 
-    py::class_<Awaitable, std::shared_ptr<Awaitable>>(py_mod, "Awaitable")
-        .def(py::init<>())
-        .def("__iter__", &Awaitable::iter)
-        .def("__await__", &Awaitable::await)
-        .def("__next__", &Awaitable::next)
+    // py::class_<Awaitable, std::shared_ptr<Awaitable>>(py_mod, "Awaitable")
+    //     .def(py::init<>())
+    //     .def("__iter__", &Awaitable::iter)
+    //     .def("__await__", &Awaitable::await)
+    //     .def("__next__", &Awaitable::next)
+    //     .def_property(
+    //         "_asyncio_future_blocking",
+    //         [](Awaitable& self) {
+    //             return self.asyncio_future_blocking;
+    //         },
+    //         [](Awaitable& self, bool value) {
+    //             self.asyncio_future_blocking = value;
+    //         })
+    //     .def("get_loop",
+    //          [](Awaitable& self) {
+    //              return self.get_loop();
+    //          })
+    //     .def(
+    //         "add_done_callback",
+    //         [](Awaitable& self, py::object callback, py::object context) {
+    //             self.add_done_callback(callback, context);
+    //         },
+    //         py::arg("callback"),
+    //         py::kw_only(),
+    //         py::arg("context") = py::none());
+
+    py::class_<PyAsyncFuture, std::shared_ptr<PyAsyncFuture>>(py_mod, "PromiseAwaitable")
+        .def("__iter__", &PyAsyncFuture::iter)
+        // .def("__await__", &PyBoostPromise::PyBoostPromiseAwaitable::await)
+        .def("__next__", &PyAsyncFuture::next)
         .def_property(
             "_asyncio_future_blocking",
-            [](Awaitable& self) {
+            [](PyAsyncFuture& self) {
                 return self.asyncio_future_blocking;
             },
-            [](Awaitable& self, bool value) {
+            [](PyAsyncFuture& self, bool value) {
                 self.asyncio_future_blocking = value;
             })
         .def("get_loop",
-             [](Awaitable& self) {
+             [](PyAsyncFuture& self) {
                  return self.get_loop();
              })
+        .def("result", &PyAsyncFuture::result)
         .def(
             "add_done_callback",
-            [](Awaitable& self, py::object callback, py::object context) {
+            [](PyAsyncFuture& self, py::object callback, py::object context) {
                 self.add_done_callback(callback, context);
             },
             py::arg("callback"),
             py::kw_only(),
             py::arg("context") = py::none());
 
-    py::class_<PyBoostPromise, std::shared_ptr<PyBoostPromise>>(py_mod, "Promise")
+    py::class_<PyAsyncPromise, std::shared_ptr<PyAsyncPromise>>(py_mod, "AsyncPromise")
         .def(py::init<>([]() {
-            return std::make_shared<PyBoostPromise>();
+            return std::make_shared<PyAsyncPromise>();
         }))
-        .def("result", &PyBoostPromise::result)
-        .def("set_result", &PyBoostPromise::set_result)
-        .def("__iter__", &PyBoostPromise::iter)
-        .def("__await__", &PyBoostPromise::await)
-        .def("__next__", &PyBoostPromise::next)
-        .def_property(
-            "_asyncio_future_blocking",
-            [](PyBoostPromise& self) {
-                return self.asyncio_future_blocking;
-            },
-            [](PyBoostPromise& self, bool value) {
-                self.asyncio_future_blocking = value;
-            })
-        .def("get_loop",
-             [](PyBoostPromise& self) {
-                 return self.get_loop();
-             })
-        .def(
-            "add_done_callback",
-            [](PyBoostPromise& self, py::object callback, py::object context) {
-                self.add_done_callback(callback, context);
-            },
-            py::arg("callback"),
-            py::kw_only(),
-            py::arg("context") = py::none());
+        .def("result", &PyAsyncPromise::result)
+        .def("set_result", &PyAsyncPromise::set_result)
+        // .def("__iter__", &PyBoostPromise::iter)
+        .def("__await__", &PyAsyncPromise::await);
+    // .def("__next__", &PyBoostPromise::next)
+    // .def_property(
+    //     "_asyncio_future_blocking",
+    //     [](PyBoostPromise& self) {
+    //         return self.asyncio_future_blocking;
+    //     },
+    //     [](PyBoostPromise& self, bool value) {
+    //         self.asyncio_future_blocking = value;
+    //     })
+    // .def("get_loop",
+    //      [](PyBoostPromise& self) {
+    //          return self.get_loop();
+    //      })
+    // .def(
+    //     "add_done_callback",
+    //     [](PyBoostPromise& self, py::object callback, py::object context) {
+    //         self.add_done_callback(callback, context);
+    //     },
+    //     py::arg("callback"),
+    //     py::kw_only(),
+    //     py::arg("context") = py::none());
 
     py::class_<Executor, std::shared_ptr<Executor>>(py_mod, "Executor")
         .def(py::init<>([]() {

@@ -40,7 +40,7 @@ def source_pyexception():
             yield 2
             yield 3
 
-            # raise RuntimeError("Raised python error")
+            raise RuntimeError("Raised python error")
 
         return builder.make_source("source", gen_data_and_raise)
 
@@ -114,6 +114,7 @@ def build_executor():
 
     def inner(pipe: mrc.Pipeline):
         options = mrc.Options()
+        options.topology.user_cpuset = "0-1"
 
         executor = mrc.Executor(options)
         executor.register_pipeline(pipe)

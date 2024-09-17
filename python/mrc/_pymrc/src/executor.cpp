@@ -18,6 +18,7 @@
 #include "pymrc/executor.hpp"  // IWYU pragma: associated
 
 #include "pymrc/pipeline.hpp"
+#include "pymrc/utilities/object_wrappers.hpp"
 
 #include "mrc/core/utils.hpp"
 #include "mrc/pipeline/executor.hpp"
@@ -45,6 +46,7 @@
 #include <memory>
 #include <mutex>
 #include <ostream>
+#include <stdexcept>
 #include <string>
 #include <thread>
 #include <utility>
@@ -303,22 +305,23 @@ Executor::~Executor()
     // Ensure we have stopped
     // this->stop(); //TODO(MDD): Do we want to call this here? Throws an error if it stopped on its own already
 
+    // before release the executor, we need to drop the gil so that system can acquire the gil in each thread finalizer
+    py::gil_scoped_release nogil;
+
     // Wait for the start thread to complete
     m_join_thread.join();
 
-    // before release the executor, we need to drop the gil so that system can acquire the gil in each thread finalizer
-    py::gil_scoped_release gil;
     m_exec.reset();
 
-    if (m_join_future.valid() &&
-        m_join_future.wait_for(std::chrono::milliseconds(100)) != boost::fibers::future_status::ready)
-    {
-        py::gil_scoped_acquire gil;
+    // if (m_join_future.valid() &&
+    //     m_join_future.wait_for(std::chrono::milliseconds(100)) != boost::fibers::future_status::ready)
+    // {
+    //     py::gil_scoped_acquire gil;
 
-        py::print(
-            "Executable was not complete before it was destroyed! Ensure you have called `join()` or `await "
-            "join_async()` before the Executor goes out of scope.");
-    }
+    //     py::print(
+    //         "Executable was not complete before it was destroyed! Ensure you have called `join()` or `await "
+    //         "join_async()` before the Executor goes out of scope.");
+    // }
 }
 
 void Executor::register_pipeline(pymrc::Pipeline& pipeline)
@@ -330,6 +333,10 @@ void Executor::start()
 {
     auto gil_init  = create_gil_initializer();
     auto gil_final = create_gil_finalizer();
+
+    std::unique_lock lock(m_mutex);
+
+    m_join_promise = std::make_shared<PyAsyncPromise>();
 
     py::gil_scoped_release nogil;
 
@@ -356,29 +363,19 @@ void Executor::start()
             // Get the GIL first since we are going to set python values
             py::gil_scoped_acquire gil;
 
-            std::unique_lock lock(m_mutex);
+            // std::unique_lock lock(m_mutex);
 
-            // Loop over outstanding promises and set the value
-            for (auto& promise : m_join_promises)
-            {
-                promise->set_result(pybind11::none());
-            }
-
-            m_join_promises.clear();
+            m_join_promise->set_result(py::none());
 
         } catch (std::exception& e)
         {
             LOG(ERROR) << "Exception occurred during Executor::start(). Error: " << std::string(e.what());
 
-            std::unique_lock lock(m_mutex);
+            py::gil_scoped_acquire gil;
 
-            // Loop over outstanding promises and set the exception
-            for (auto& promise : m_join_promises)
-            {
-                promise->set_exception(std::current_exception());
-            }
+            // std::unique_lock lock(m_mutex);
 
-            m_join_promises.clear();
+            m_join_promise->set_exception(std::current_exception());
         }
 
         gil_final();
@@ -393,28 +390,29 @@ void Executor::stop()
 void Executor::join()
 {
     {
-        // Release the GIL before blocking
-        py::gil_scoped_release nogil;
+        // Ensure we are still running
+        std::unique_lock lock(m_mutex);
 
-        // Wait without the GIL
-        m_join_future.wait();
+        if (!m_join_promise)
+        {
+            throw std::runtime_error("Executor is not running. Cannot call join_async() before calling start().");
+        }
     }
 
-    // Call get() with the GIL to rethrow any exceptions
-    m_join_future.get();
+    m_join_promise->result();
 }
 
-std::shared_ptr<PyBoostPromise> Executor::join_async()
+std::shared_ptr<PyAsyncPromise> Executor::join_async()
 {
     // Ensure we are still running
     std::unique_lock lock(m_mutex);
 
-    auto promise = std::make_shared<PyBoostPromise>();
+    if (!m_join_promise)
+    {
+        throw std::runtime_error("Executor is not running. Cannot call join_async() before calling start().");
+    }
 
-    m_join_promises.push_back(promise);
-
-    return promise;
-
+    return m_join_promise;
     // // No gil here
     // Future<py::object> py_fiber_future = boost::fibers::async([this]() -> py::object {
     //     // Wait for the join future
@@ -509,10 +507,29 @@ void PyBoostFuture::set_result(py::object&& obj)
     m_promise.set_value(std::move(obj));
 }
 
-PyBoostPromise::PyBoostPromise()
+pybind11::object PySharedState::get_result()
 {
-    m_future = m_promise.get_future();
+    std::unique_lock lock(m_mutex);
 
+    // {
+    //     // Release the GIL until we have a value
+    //     py::gil_scoped_release nogil;
+
+    //     m_cv.wait(lock, [this] {
+    //         return m_is_ready;
+    //     });
+    // }
+
+    if (m_exception)
+    {
+        std::rethrow_exception(m_exception);
+    }
+
+    return m_result.copy_obj();
+}
+
+PyAsyncFuture::PyAsyncFuture(std::shared_ptr<PyAsyncPromise> parent) : m_parent(std::move(parent))
+{
     // Save the loop
     py::gil_scoped_acquire gil;
 
@@ -534,102 +551,221 @@ PyBoostPromise::PyBoostPromise()
     }
 }
 
-std::shared_ptr<PyBoostPromise> PyBoostPromise::iter()
+std::shared_ptr<PyAsyncFuture> PyAsyncFuture::iter()
 {
     return this->shared_from_this();
 }
 
-std::shared_ptr<PyBoostPromise> PyBoostPromise::await()
-{
-    this->asyncio_future_blocking = true;
+// std::shared_ptr<PyAsyncFuture> PyAsyncFuture::await() {
 
-    return this->shared_from_this();
-}
+//     this->asyncio_future_blocking = true;
 
-std::shared_ptr<PyBoostPromise> PyBoostPromise::next()
+// }
+
+std::shared_ptr<PyAsyncFuture> PyAsyncFuture::next()
 {
-    // Need to release the GIL before  waiting
+    // Do not hold the GIL while waiting for the mutex
     py::gil_scoped_release nogil;
 
-    // check if the future is resolved (with zero timeout)
-    auto status = this->m_future.wait_for(std::chrono::milliseconds(0));
+    std::unique_lock lock(m_parent->m_mutex);
 
-    if (status == std::future_status::ready)
+    if (m_parent->m_state != PyAsyncPromise::State::Pending)
     {
-        // Grab the gil before moving and throwing
+        // Need the GIL before getting the python result
         py::gil_scoped_acquire gil;
 
-        VLOG(10) << "Returning result via StopIteration";
-
         // job done -> throw
-        auto exception = StopIteration(std::move(this->m_future.get()));
+        auto exception = StopIteration(std::move(m_parent->get_result(lock)));
 
         throw exception;
     }
 
-    // return nullptr;
-
     return this->shared_from_this();
 }
 
-pybind11::object PyBoostPromise::get_loop() const
+pybind11::object PyAsyncFuture::result()
+{
+    return m_parent->result();
+}
+
+pybind11::object PyAsyncFuture::exception()
+{
+    return m_parent->exception();
+}
+
+pybind11::object PyAsyncFuture::get_loop() const
 {
     return m_loop.copy_obj();
 }
 
-void PyBoostPromise::add_done_callback(pybind11::object callback, pybind11::object context)
+void PyAsyncFuture::add_done_callback(pybind11::object callback, pybind11::object context)
 {
-    // Add to the list of callbacks
-    m_callbacks.emplace_back(std::move(callback), std::move(context));
+    m_parent->add_done_callback(
+        [this, callback = PyObjectHolder(std::move(callback)), context = PyObjectHolder(std::move(context))]() {
+            py::gil_scoped_acquire gil;
+
+            m_loop.attr("call_soon_threadsafe")(callback, this->shared_from_this(), "context"_a = context);
+        });
 }
 
-pybind11::object PyBoostPromise::result()
+PyAsyncPromise::PyAsyncPromise() = default;
+
+// std::shared_ptr<PyBoostPromise> PyBoostPromise::iter()
+// {
+//     return this->shared_from_this();
+// }
+
+std::shared_ptr<PyAsyncFuture> PyAsyncPromise::await()
 {
+    return std::shared_ptr<PyAsyncFuture>(new PyAsyncFuture(this->shared_from_this()));
+}
+
+// std::shared_ptr<PyBoostPromise> PyBoostPromise::next()
+// {
+//     std::unique_lock lock(m_mutex);
+
+//     if (m_state == State::Finished)
+//     {
+//         VLOG(10) << "Returning result via StopIteration";
+
+//         // job done -> throw
+//         auto exception = StopIteration(std::move(this->result()));
+
+//         throw exception;
+//     }
+
+//     return this->shared_from_this();
+// }
+
+// pybind11::object PyBoostPromise::get_loop() const
+// {
+//     return m_loop.copy_obj();
+// }
+
+void PyAsyncPromise::add_done_callback(std::function<void()> callback)
+{
+    // Do not hold the GIL while waiting for the mutex
+    py::gil_scoped_release nogil;
+
+    std::unique_lock lock(m_mutex);
+
+    if (m_state != State::Pending)
     {
-        // Release the GIL until we have a value
-        py::gil_scoped_release nogil;
-
-        m_future.wait();
-    }
-
-    VLOG(10) << "Got result";
-
-    return m_future.get();
-}
-
-void PyBoostPromise::set_result(pybind11::object&& obj)
-{
-    m_promise.set_value(std::move(obj));
-
-    // Schedule the callbacks
-    this->schedule_callbacks();
-}
-
-void PyBoostPromise::set_exception(std::exception_ptr&& e)
-{
-    m_promise.set_exception(std::move(e));
-
-    // Schedule the callbacks
-    this->schedule_callbacks();
-}
-
-void PyBoostPromise::schedule_callbacks()
-{
-    if (m_callbacks.empty())
-    {
+        // Call the callback immediately if we are already finished
+        callback();
         return;
     }
 
-    // Ensure that we have the GIL here
+    // Add to the list of callbacks
+    m_callbacks.emplace_back(std::move(callback));
+}
+
+pybind11::object PyAsyncPromise::result()
+{
+    // Do not hold the GIL while waiting for the mutex
+    py::gil_scoped_release nogil;
+
+    std::unique_lock lock(m_mutex);
+
+    m_cv.wait(lock, [this] {
+        return m_state != State::Pending;
+    });
+
+    // Need the GIL before getting the python result
     py::gil_scoped_acquire gil;
 
-    // Loop over all callbacks and schedule them on the loop
-    for (auto& [callback, context] : m_callbacks)
+    return this->get_result(lock);
+}
+
+pybind11::object PyAsyncPromise::exception()
+{
+    // Do not hold the GIL while waiting for the mutex
+    py::gil_scoped_release nogil;
+
+    std::unique_lock lock(m_mutex);
+
+    m_cv.wait(lock, [this] {
+        return m_state != State::Pending;
+    });
+
+    // Need the GIL before getting the python result
+    py::gil_scoped_acquire gil;
+
+    if (m_exception)
+    {
+        CHECK(false) << "Not supported";
+    }
+
+    return py::none();
+}
+
+void PyAsyncPromise::set_result(pybind11::object&& obj)
+{
+    // Do not hold the GIL while waiting for the mutex
+    py::gil_scoped_release nogil;
+
+    std::unique_lock lock(m_mutex);
+
+    if (m_state != State::Pending)
+    {
+        throw std::runtime_error("Cannot set result on a promise that is not pending.");
+    }
+
+    m_result = std::move(obj);
+
+    m_state = State::Finished;
+
+    // Schedule the callbacks
+    this->schedule_callbacks();
+}
+
+void PyAsyncPromise::set_exception(std::exception_ptr&& e)
+{
+    // Do not hold the GIL while waiting for the mutex
+    py::gil_scoped_release nogil;
+
+    std::unique_lock lock(m_mutex);
+
+    if (m_state != State::Pending)
+    {
+        throw std::runtime_error("Cannot set result on a promise that is not pending.");
+    }
+
+    m_exception = std::move(e);
+
+    m_state = State::Finished;
+
+    // Schedule the callbacks
+    this->schedule_callbacks();
+}
+
+pybind11::object PyAsyncPromise::get_result(std::unique_lock<std::mutex>& lock)
+{
+    if (m_state == State::Pending)
+    {
+        // Cannot get the result if we are still pending
+        throw std::runtime_error("Cannot get the result of a promise that is still pending.");
+    }
+
+    if (m_exception)
+    {
+        std::rethrow_exception(m_exception);
+    }
+
+    return m_result.copy_obj();
+}
+
+void PyAsyncPromise::schedule_callbacks()
+{
+    for (auto& callback : m_callbacks)
     {
         // Call the callback
-        m_loop.attr("call_soon_threadsafe")(callback, this->shared_from_this(), "context"_a = context);
+        callback();
     }
 
     m_callbacks.clear();
+
+    // Notify all waiting threads
+    m_cv.notify_all();
 }
 }  // namespace mrc::pymrc
