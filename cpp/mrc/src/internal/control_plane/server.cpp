@@ -139,7 +139,7 @@ void Server::do_service_start(std::stop_token stop_token)
         // Find the location relative to the build folder
         auto mrc_lib_location = std::filesystem::path(utils::get_mrc_lib_location());
 
-        auto node_service_js = mrc_lib_location.parent_path() / ".." / ".." / "ts" / "control-plane" / "dist" /
+        auto node_service_js = mrc_lib_location.parent_path() / ".." / ".." / ".." / "ts" / "control-plane" / "build" /
                                "index.bundle.js";
 
         // Convert to absolute just to be sure

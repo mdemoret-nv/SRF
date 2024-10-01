@@ -403,6 +403,7 @@ NodeService::~NodeService()
 
 void NodeService::do_service_start(std::stop_token stop_token)
 {
+    this->mark_started();
     boost::fibers::packaged_task<void()> pkg_task(std::move([this, stop_token]() {
         this->launch_node(m_args);
     }));

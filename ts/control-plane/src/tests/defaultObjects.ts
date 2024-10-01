@@ -27,6 +27,7 @@ const default_resource_state: IResourceState = {
    requestedStatus: ResourceRequestedStatus.Requested_Initialized,
    actualStatus: ResourceActualStatus.Actual_Unknown,
    dependees: [],
+   dependers: [],
 };
 
 export const executor: IExecutor = Executor.create("localhost:1234").get_interface();

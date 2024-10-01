@@ -187,20 +187,21 @@ control_plane::state::PipelineInstance PipelineInstance::filter_resource(
 bool PipelineInstance::on_created_requested(control_plane::state::PipelineInstance& instance, bool needs_local_update)
 {
     this->sync_manifolds(instance);
+    LOG(INFO) << "PipelineInstance: on_created_requested";
 
     return true;
 }
 
 void PipelineInstance::on_completed_requested(control_plane::state::PipelineInstance& instance)
 {
-    // // Activate our worker
+    // Activate our worker
     // protos::RegisterWorkersResponse resp;
     // resp.set_machine_id(0);
-    // resp.add_instance_ids(m_worker_id);
+    // resp.add_instance_ids(instance.worker_id());
 
     // // Need to activate our worker
     // this->runtime().control_plane().await_unary<protos::Ack>(protos::ClientUnaryActivateStream, std::move(resp));
-    LOG(INFO) << "PipelineInstance: on_created_requested";
+    LOG(INFO) << "PipelineInstance: on_completed_requested";
 }
 
 void PipelineInstance::on_running_state_updated(control_plane::state::PipelineInstance& instance)

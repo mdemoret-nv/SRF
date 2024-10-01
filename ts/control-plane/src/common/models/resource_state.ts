@@ -28,6 +28,10 @@ export class ResourceState implements IResourceState {
       return this._interface.dependees;
    }
 
+   public get dependers(): ResourceDefinition[] {
+      return this._interface.dependers;
+   }
+
    public get_interface() {
       return this._interface;
    }
@@ -37,6 +41,7 @@ export class ResourceState implements IResourceState {
          requestedStatus: ResourceRequestedStatus.Requested_Initialized,
          actualStatus: ResourceActualStatus.Actual_Unknown,
          dependees: [],
+         dependers: [],
       });
    }
 }

@@ -2,8 +2,8 @@ export async function launchDevtoolsCli(hostname: string = "localhost", port: st
    const reduxDevToolsServer = await import(/*webpackIgnore: true*/ "@redux-devtools/cli");
 
    const devToolsServer = await reduxDevToolsServer.default({
-      hostname: hostname,
-      port: port,
+      hostname,
+      port,
    });
 
    if (devToolsServer.portAlreadyUsed) {

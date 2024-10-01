@@ -181,6 +181,9 @@ add_subdirectory(cpp)
 
 add_subdirectory(ts)
 
+add_subdirectory(docs/quickstart/cpp)
+
+
 if(MRC_BUILD_PYTHON)
   add_subdirectory(python)
 endif()

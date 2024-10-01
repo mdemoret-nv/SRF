@@ -50,6 +50,7 @@ export const connectionsSlice = createSlice({
                actualStatus: ResourceActualStatus.Actual_Unknown,
                requestedStatus: ResourceRequestedStatus.Requested_Created,
                dependees: [],
+               dependers: [],
             },
          });
       },

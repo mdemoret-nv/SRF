@@ -302,6 +302,52 @@ export function resourceActualStatusToNumber(object: ResourceActualStatus): numb
   }
 }
 
+export enum ResourceType {
+  /** Manifold_Instance - This enum represents the type of resource that is being managed by the control plane. */
+  Manifold_Instance = "Manifold_Instance",
+  Segment_Instance = "Segment_Instance",
+  UNRECOGNIZED = "UNRECOGNIZED",
+}
+
+export function resourceTypeFromJSON(object: any): ResourceType {
+  switch (object) {
+    case 0:
+    case "Manifold_Instance":
+      return ResourceType.Manifold_Instance;
+    case 1:
+    case "Segment_Instance":
+      return ResourceType.Segment_Instance;
+    case -1:
+    case "UNRECOGNIZED":
+    default:
+      return ResourceType.UNRECOGNIZED;
+  }
+}
+
+export function resourceTypeToJSON(object: ResourceType): string {
+  switch (object) {
+    case ResourceType.Manifold_Instance:
+      return "Manifold_Instance";
+    case ResourceType.Segment_Instance:
+      return "Segment_Instance";
+    case ResourceType.UNRECOGNIZED:
+    default:
+      return "UNRECOGNIZED";
+  }
+}
+
+export function resourceTypeToNumber(object: ResourceType): number {
+  switch (object) {
+    case ResourceType.Manifold_Instance:
+      return 0;
+    case ResourceType.Segment_Instance:
+      return 1;
+    case ResourceType.UNRECOGNIZED:
+    default:
+      return -1;
+  }
+}
+
 export enum SegmentMappingPolicies {
   /** Disabled - Do not run this segment for the specified machine ID */
   Disabled = "Disabled",
@@ -358,66 +404,9 @@ export function segmentMappingPoliciesToNumber(object: SegmentMappingPolicies): 
   }
 }
 
-export interface Resource {
-  $type: "mrc.protos.Resource";
-}
-
-export enum Resource_Type {
-  ManifoldInstance = "ManifoldInstance",
-  SegmentInstance = "SegmentInstance",
-  PipelineInstance = "PipelineInstance",
-  UNRECOGNIZED = "UNRECOGNIZED",
-}
-
-export function resource_TypeFromJSON(object: any): Resource_Type {
-  switch (object) {
-    case 0:
-    case "ManifoldInstance":
-      return Resource_Type.ManifoldInstance;
-    case 1:
-    case "SegmentInstance":
-      return Resource_Type.SegmentInstance;
-    case 2:
-    case "PipelineInstance":
-      return Resource_Type.PipelineInstance;
-    case -1:
-    case "UNRECOGNIZED":
-    default:
-      return Resource_Type.UNRECOGNIZED;
-  }
-}
-
-export function resource_TypeToJSON(object: Resource_Type): string {
-  switch (object) {
-    case Resource_Type.ManifoldInstance:
-      return "ManifoldInstance";
-    case Resource_Type.SegmentInstance:
-      return "SegmentInstance";
-    case Resource_Type.PipelineInstance:
-      return "PipelineInstance";
-    case Resource_Type.UNRECOGNIZED:
-    default:
-      return "UNRECOGNIZED";
-  }
-}
-
-export function resource_TypeToNumber(object: Resource_Type): number {
-  switch (object) {
-    case Resource_Type.ManifoldInstance:
-      return 0;
-    case Resource_Type.SegmentInstance:
-      return 1;
-    case Resource_Type.PipelineInstance:
-      return 2;
-    case Resource_Type.UNRECOGNIZED:
-    default:
-      return -1;
-  }
-}
-
-export interface Resource_Definition {
-  $type: "mrc.protos.Resource.Definition";
-  resourceType: Resource_Type;
+export interface ResourceDefinition {
+  $type: "mrc.protos.ResourceDefinition";
+  resourceType: ResourceType;
   resourceId: string;
 }
 
@@ -432,7 +421,9 @@ export interface ResourceState {
   /** What the local resource has reported its state as */
   actualStatus: ResourceActualStatus;
   /** Dependees of the Resource */
-  dependees: Resource_Definition[];
+  dependees: ResourceDefinition[];
+  /** Dependers of the Resource */
+  dependers: ResourceDefinition[];
 }
 
 export interface Executor {
@@ -1165,64 +1156,16 @@ export function egressPolicy_PolicyToNumber(object: EgressPolicy_Policy): number
   }
 }
 
-function createBaseResource(): Resource {
-  return { $type: "mrc.protos.Resource" };
+function createBaseResourceDefinition(): ResourceDefinition {
+  return { $type: "mrc.protos.ResourceDefinition", resourceType: ResourceType.Manifold_Instance, resourceId: "0" };
 }
 
-export const Resource = {
-  $type: "mrc.protos.Resource" as const,
+export const ResourceDefinition = {
+  $type: "mrc.protos.ResourceDefinition" as const,
 
-  encode(_: Resource, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
-    return writer;
-  },
-
-  decode(input: _m0.Reader | Uint8Array, length?: number): Resource {
-    const reader = input instanceof _m0.Reader ? input : _m0.Reader.create(input);
-    let end = length === undefined ? reader.len : reader.pos + length;
-    const message = createBaseResource();
-    while (reader.pos < end) {
-      const tag = reader.uint32();
-      switch (tag >>> 3) {
-      }
-      if ((tag & 7) === 4 || tag === 0) {
-        break;
-      }
-      reader.skipType(tag & 7);
-    }
-    return message;
-  },
-
-  fromJSON(_: any): Resource {
-    return { $type: Resource.$type };
-  },
-
-  toJSON(_: Resource): unknown {
-    const obj: any = {};
-    return obj;
-  },
-
-  create(base?: DeepPartial<Resource>): Resource {
-    return Resource.fromPartial(base ?? {});
-  },
-
-  fromPartial(_: DeepPartial<Resource>): Resource {
-    const message = createBaseResource();
-    return message;
-  },
-};
-
-messageTypeRegistry.set(Resource.$type, Resource);
-
-function createBaseResource_Definition(): Resource_Definition {
-  return { $type: "mrc.protos.Resource.Definition", resourceType: Resource_Type.ManifoldInstance, resourceId: "0" };
-}
-
-export const Resource_Definition = {
-  $type: "mrc.protos.Resource.Definition" as const,
-
-  encode(message: Resource_Definition, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
-    if (message.resourceType !== Resource_Type.ManifoldInstance) {
-      writer.uint32(8).int32(resource_TypeToNumber(message.resourceType));
+  encode(message: ResourceDefinition, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+    if (message.resourceType !== ResourceType.Manifold_Instance) {
+      writer.uint32(8).int32(resourceTypeToNumber(message.resourceType));
     }
     if (message.resourceId !== "0") {
       writer.uint32(16).uint64(message.resourceId);
@@ -1230,10 +1173,10 @@ export const Resource_Definition = {
     return writer;
   },
 
-  decode(input: _m0.Reader | Uint8Array, length?: number): Resource_Definition {
+  decode(input: _m0.Reader | Uint8Array, length?: number): ResourceDefinition {
     const reader = input instanceof _m0.Reader ? input : _m0.Reader.create(input);
     let end = length === undefined ? reader.len : reader.pos + length;
-    const message = createBaseResource_Definition();
+    const message = createBaseResourceDefinition();
     while (reader.pos < end) {
       const tag = reader.uint32();
       switch (tag >>> 3) {
@@ -1242,7 +1185,7 @@ export const Resource_Definition = {
             break;
           }
 
-          message.resourceType = resource_TypeFromJSON(reader.int32());
+          message.resourceType = resourceTypeFromJSON(reader.int32());
           continue;
         case 2:
           if (tag !== 16) {
@@ -1260,36 +1203,36 @@ export const Resource_Definition = {
     return message;
   },
 
-  fromJSON(object: any): Resource_Definition {
+  fromJSON(object: any): ResourceDefinition {
     return {
-      $type: Resource_Definition.$type,
+      $type: ResourceDefinition.$type,
       resourceType: isSet(object.resourceType)
-        ? resource_TypeFromJSON(object.resourceType)
-        : Resource_Type.ManifoldInstance,
+        ? resourceTypeFromJSON(object.resourceType)
+        : ResourceType.Manifold_Instance,
       resourceId: isSet(object.resourceId) ? String(object.resourceId) : "0",
     };
   },
 
-  toJSON(message: Resource_Definition): unknown {
+  toJSON(message: ResourceDefinition): unknown {
     const obj: any = {};
-    message.resourceType !== undefined && (obj.resourceType = resource_TypeToJSON(message.resourceType));
+    message.resourceType !== undefined && (obj.resourceType = resourceTypeToJSON(message.resourceType));
     message.resourceId !== undefined && (obj.resourceId = message.resourceId);
     return obj;
   },
 
-  create(base?: DeepPartial<Resource_Definition>): Resource_Definition {
-    return Resource_Definition.fromPartial(base ?? {});
+  create(base?: DeepPartial<ResourceDefinition>): ResourceDefinition {
+    return ResourceDefinition.fromPartial(base ?? {});
   },
 
-  fromPartial(object: DeepPartial<Resource_Definition>): Resource_Definition {
-    const message = createBaseResource_Definition();
-    message.resourceType = object.resourceType ?? Resource_Type.ManifoldInstance;
+  fromPartial(object: DeepPartial<ResourceDefinition>): ResourceDefinition {
+    const message = createBaseResourceDefinition();
+    message.resourceType = object.resourceType ?? ResourceType.Manifold_Instance;
     message.resourceId = object.resourceId ?? "0";
     return message;
   },
 };
 
-messageTypeRegistry.set(Resource_Definition.$type, Resource_Definition);
+messageTypeRegistry.set(ResourceDefinition.$type, ResourceDefinition);
 
 function createBaseResourceState(): ResourceState {
   return {
@@ -1297,6 +1240,7 @@ function createBaseResourceState(): ResourceState {
     requestedStatus: ResourceRequestedStatus.Requested_Unknown,
     actualStatus: ResourceActualStatus.Actual_Unknown,
     dependees: [],
+    dependers: [],
   };
 }
 
@@ -1305,13 +1249,16 @@ export const ResourceState = {
 
   encode(message: ResourceState, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
     if (message.requestedStatus !== ResourceRequestedStatus.Requested_Unknown) {
-      writer.uint32(16).int32(resourceRequestedStatusToNumber(message.requestedStatus));
+      writer.uint32(8).int32(resourceRequestedStatusToNumber(message.requestedStatus));
     }
     if (message.actualStatus !== ResourceActualStatus.Actual_Unknown) {
-      writer.uint32(24).int32(resourceActualStatusToNumber(message.actualStatus));
+      writer.uint32(16).int32(resourceActualStatusToNumber(message.actualStatus));
     }
     for (const v of message.dependees) {
-      Resource_Definition.encode(v!, writer.uint32(42).fork()).ldelim();
+      ResourceDefinition.encode(v!, writer.uint32(26).fork()).ldelim();
+    }
+    for (const v of message.dependers) {
+      ResourceDefinition.encode(v!, writer.uint32(34).fork()).ldelim();
     }
     return writer;
   },
@@ -1323,26 +1270,33 @@ export const ResourceState = {
     while (reader.pos < end) {
       const tag = reader.uint32();
       switch (tag >>> 3) {
-        case 2:
-          if (tag !== 16) {
+        case 1:
+          if (tag !== 8) {
             break;
           }
 
           message.requestedStatus = resourceRequestedStatusFromJSON(reader.int32());
           continue;
-        case 3:
-          if (tag !== 24) {
+        case 2:
+          if (tag !== 16) {
             break;
           }
 
           message.actualStatus = resourceActualStatusFromJSON(reader.int32());
           continue;
-        case 5:
-          if (tag !== 42) {
+        case 3:
+          if (tag !== 26) {
             break;
           }
 
-          message.dependees.push(Resource_Definition.decode(reader, reader.uint32()));
+          message.dependees.push(ResourceDefinition.decode(reader, reader.uint32()));
+          continue;
+        case 4:
+          if (tag !== 34) {
+            break;
+          }
+
+          message.dependers.push(ResourceDefinition.decode(reader, reader.uint32()));
           continue;
       }
       if ((tag & 7) === 4 || tag === 0) {
@@ -1363,7 +1317,10 @@ export const ResourceState = {
         ? resourceActualStatusFromJSON(object.actualStatus)
         : ResourceActualStatus.Actual_Unknown,
       dependees: Array.isArray(object?.dependees)
-        ? object.dependees.map((e: any) => Resource_Definition.fromJSON(e))
+        ? object.dependees.map((e: any) => ResourceDefinition.fromJSON(e))
+        : [],
+      dependers: Array.isArray(object?.dependers)
+        ? object.dependers.map((e: any) => ResourceDefinition.fromJSON(e))
         : [],
     };
   },
@@ -1374,9 +1331,14 @@ export const ResourceState = {
       (obj.requestedStatus = resourceRequestedStatusToJSON(message.requestedStatus));
     message.actualStatus !== undefined && (obj.actualStatus = resourceActualStatusToJSON(message.actualStatus));
     if (message.dependees) {
-      obj.dependees = message.dependees.map((e) => e ? Resource_Definition.toJSON(e) : undefined);
+      obj.dependees = message.dependees.map((e) => e ? ResourceDefinition.toJSON(e) : undefined);
     } else {
       obj.dependees = [];
+    }
+    if (message.dependers) {
+      obj.dependers = message.dependers.map((e) => e ? ResourceDefinition.toJSON(e) : undefined);
+    } else {
+      obj.dependers = [];
     }
     return obj;
   },
@@ -1389,7 +1351,8 @@ export const ResourceState = {
     const message = createBaseResourceState();
     message.requestedStatus = object.requestedStatus ?? ResourceRequestedStatus.Requested_Unknown;
     message.actualStatus = object.actualStatus ?? ResourceActualStatus.Actual_Unknown;
-    message.dependees = object.dependees?.map((e) => Resource_Definition.fromPartial(e)) || [];
+    message.dependees = object.dependees?.map((e) => ResourceDefinition.fromPartial(e)) || [];
+    message.dependers = object.dependers?.map((e) => ResourceDefinition.fromPartial(e)) || [];
     return message;
   },
 };

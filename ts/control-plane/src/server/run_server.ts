@@ -1,5 +1,4 @@
 import { launchDevtoolsCli } from "@mrc/common/dev_tools";
-import { sleep } from "@mrc/common/utils";
 import { ArchitectServer } from "@mrc/server/server";
 import { setupStore } from "@mrc/server/store/store";
 
@@ -27,4 +26,6 @@ async function main() {
    console.log("Exiting script");
 }
 
-main();
+void main().then(() => {
+   console.log("Done");
+});

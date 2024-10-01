@@ -95,13 +95,16 @@ message ResourceState {
    // ResourceStatus status = 1;
 
    // What the control plane would like the resource to be
-   ResourceRequestedStatus requested_status = 2;
+   ResourceRequestedStatus requested_status = 1;
 
    // What the local resource has reported its state as
-   ResourceActualStatus actual_status = 3;
+   ResourceActualStatus actual_status = 2;
 
    // Dependees of the Resource
-   repeated ResourceDefinition dependees = 4;
+   repeated ResourceDefinition dependees = 3;
+
+   // Dependers of the Resource
+   repeated ResourceDefinition dependers = 4;
 }
 
 message Executor {

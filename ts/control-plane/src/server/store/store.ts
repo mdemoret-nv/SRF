@@ -6,9 +6,10 @@ import {
    createReducer,
    isPlain,
    PreloadedState,
+   EnhancedStore,
 } from "@reduxjs/toolkit";
 
-import { devToolsEnhancer } from "@mrc/server/devTools/index";
+import { devToolsEnhancer } from "@redux-devtools/remote";
 import { systemConfigureSlice, systemStartRequest, systemStopRequest } from "@mrc/server/store/slices/systemSlice";
 import { customBatcherEnhancer } from "@mrc/server/store/custom_batcher_enhancer";
 import { connectionsConfigureSlice } from "@mrc/server/store/slices/connectionsSlice";
