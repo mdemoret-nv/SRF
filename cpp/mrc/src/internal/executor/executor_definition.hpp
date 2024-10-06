@@ -17,9 +17,9 @@
 
 #pragma once
 
-#include "internal/service.hpp"
 #include "internal/system/system_provider.hpp"
 
+#include "mrc/core/async_service.hpp"
 #include "mrc/pipeline/executor.hpp"
 
 #include <memory>
@@ -43,7 +43,7 @@ namespace mrc::executor {
  *
  * Issues #149 will begin to separate some of the functionality of ExeuctorBase into individual components.
  */
-class ExecutorDefinition : public pipeline::IExecutor, public Service, public system::SystemProvider
+class ExecutorDefinition : public pipeline::IExecutor, public AsyncService, public system::SystemProvider
 {
   public:
     ExecutorDefinition(std::unique_ptr<system::SystemDefinition> system);
@@ -57,14 +57,16 @@ class ExecutorDefinition : public pipeline::IExecutor, public Service, public sy
     void join() override;
 
   private:
-    void do_service_start() final;
-    void do_service_stop() final;
-    void do_service_kill() final;
-    void do_service_await_live() final;
-    void do_service_await_join() final;
+    runnable::IRunnableResources& runnable() override;
+
+    void do_service_start(std::stop_token stop_token) final;
+    // void do_service_stop() final;
+    // void do_service_kill() final;
+    // void do_service_await_live() final;
+    // void do_service_await_join() final;
 
     std::unique_ptr<resources::Manager> m_resources_manager;
-    std::unique_ptr<pipeline::Manager> m_pipeline_manager;
+    std::shared_ptr<pipeline::Manager> m_pipeline_manager;
 };
 
 }  // namespace mrc::executor

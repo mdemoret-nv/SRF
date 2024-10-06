@@ -76,13 +76,13 @@ static bool valid_pipeline(const pipeline::PipelineDefinition& pipeline)
 
 ExecutorDefinition::ExecutorDefinition(std::unique_ptr<system::SystemDefinition> system) :
   SystemProvider(std::move(system)),
-  Service("ExecutorDefinition"),
+  AsyncService("ExecutorDefinition"),
   m_resources_manager(std::make_unique<resources::Manager>(*this))
 {}
 
 ExecutorDefinition::~ExecutorDefinition()
 {
-    Service::call_in_destructor();
+    AsyncService::call_in_destructor();
 }
 
 std::shared_ptr<ExecutorDefinition> ExecutorDefinition::unwrap(std::shared_ptr<pipeline::IExecutor> object)
@@ -108,7 +108,7 @@ void ExecutorDefinition::register_pipeline(std::shared_ptr<pipeline::IPipeline> 
         throw exceptions::MrcRuntimeError("pipeline validation failed");
     }
 
-    m_pipeline_manager = std::make_unique<pipeline::Manager>(full_pipeline, *m_resources_manager);
+    m_pipeline_manager = std::make_shared<pipeline::Manager>(full_pipeline, *m_resources_manager);
 }
 
 void ExecutorDefinition::start()
@@ -126,7 +126,12 @@ void ExecutorDefinition::join()
     this->service_await_join();
 }
 
-void ExecutorDefinition::do_service_start()
+runnable::IRunnableResources& ExecutorDefinition::runnable()
+{
+    return m_resources_manager->partition(0).runnable();
+}
+
+void ExecutorDefinition::do_service_start(std::stop_token stop_token)
 {
     CHECK(m_pipeline_manager);
 
@@ -136,28 +141,34 @@ void ExecutorDefinition::do_service_start()
         auto address              = segment_address_encode(id, 0);  // rank 0
         initial_segments[address] = 0;                              // partition 0;
     }
+
+    // Dont wait for the manager to be fully started before sending the update
+    this->child_service_start(m_pipeline_manager, false);
+
     m_pipeline_manager->push_updates(std::move(initial_segments));
+
+    this->mark_started();
 }
 
-void ExecutorDefinition::do_service_stop()
-{
-    CHECK(m_pipeline_manager);
-    m_pipeline_manager->service_stop();
-}
-void ExecutorDefinition::do_service_kill()
-{
-    CHECK(m_pipeline_manager);
-    return m_pipeline_manager->service_kill();
-}
-void ExecutorDefinition::do_service_await_live()
-{
-    CHECK(m_pipeline_manager);
-    m_pipeline_manager->service_await_live();
-}
-void ExecutorDefinition::do_service_await_join()
-{
-    CHECK(m_pipeline_manager);
-    m_pipeline_manager->service_await_join();
-}
+// void ExecutorDefinition::do_service_stop()
+// {
+//     CHECK(m_pipeline_manager);
+//     m_pipeline_manager->service_stop();
+// }
+// void ExecutorDefinition::do_service_kill()
+// {
+//     CHECK(m_pipeline_manager);
+//     return m_pipeline_manager->service_kill();
+// }
+// void ExecutorDefinition::do_service_await_live()
+// {
+//     CHECK(m_pipeline_manager);
+//     m_pipeline_manager->service_await_live();
+// }
+// void ExecutorDefinition::do_service_await_join()
+// {
+//     CHECK(m_pipeline_manager);
+//     m_pipeline_manager->service_await_join();
+// }
 
 }  // namespace mrc::executor

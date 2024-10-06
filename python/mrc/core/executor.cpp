@@ -156,13 +156,6 @@ PYBIND11_MODULE(executor, py_mod)
         .def("join_async", &Executor::join_async)
         .def("register_pipeline", &Executor::register_pipeline);
 
-    py::class_<PyBoostFuture>(py_mod, "Future")
-        .def(py::init<>([]() {
-            return PyBoostFuture();
-        }))
-        .def("result", &PyBoostFuture::py_result)
-        .def("set_result", &PyBoostFuture::set_result);
-
     py_mod.attr("__version__") = MRC_CONCAT_STR(mrc_VERSION_MAJOR << "." << mrc_VERSION_MINOR << "."
                                                                   << mrc_VERSION_PATCH);
 }

@@ -53,7 +53,8 @@ SegmentInstance::SegmentInstance(std::shared_ptr<const SegmentDefinition> defini
                                  SegmentRank rank,
                                  pipeline::PipelineResources& resources,
                                  std::size_t partition_id) :
-  Service("segment::SegmentInstance"),
+  AsyncService("segment::SegmentInstance"),
+  runnable::RunnableResourcesProvider(resources.resources().partition(partition_id).runnable()),
   m_name(definition->name()),
   m_id(definition->id()),
   m_rank(rank),
@@ -80,7 +81,7 @@ SegmentInstance::SegmentInstance(std::shared_ptr<const SegmentDefinition> defini
 
 SegmentInstance::~SegmentInstance()
 {
-    Service::call_in_destructor();
+    AsyncService::call_in_destructor();
 }
 
 const std::string& SegmentInstance::name() const
@@ -103,7 +104,7 @@ const SegmentAddress& SegmentInstance::address() const
     return m_address;
 }
 
-void SegmentInstance::do_service_start()
+void SegmentInstance::do_service_start(std::stop_token stop_token)
 {
     // prepare launchers from m_builder
     std::map<std::string, std::unique_ptr<mrc::runnable::Launcher>> m_launchers;
@@ -125,156 +126,166 @@ void SegmentInstance::do_service_start()
     for (const auto& [name, node] : m_builder->nodes())
     {
         DVLOG(10) << info() << " constructing launcher for " << name;
-        m_launchers[name] = node->prepare_launcher(
-            m_resources.resources().partition(m_default_partition_id).runnable().launch_control());
-        apply_callback(m_launchers[name], name);
+
+        this->child_launchable_start(name, node);
+        // m_launchers[name] = node->prepare_launcher(
+        //     m_resources.resources().partition(m_default_partition_id).runnable().launch_control());
+        // apply_callback(m_launchers[name], name);
     }
 
     for (const auto& [name, node] : m_builder->egress_ports())
     {
         DVLOG(10) << info() << " constructing launcher egress port " << name;
-        m_egress_launchers[name] = node->prepare_launcher(
-            m_resources.resources().partition(m_default_partition_id).runnable().launch_control());
-        apply_callback(m_egress_launchers[name], name);
+
+        this->child_launchable_start(name, node);
+
+        // m_egress_launchers[name] = node->prepare_launcher(
+        //     m_resources.resources().partition(m_default_partition_id).runnable().launch_control());
+        // apply_callback(m_egress_launchers[name], name);
     }
 
     for (const auto& [name, node] : m_builder->ingress_ports())
     {
         DVLOG(10) << info() << " constructing launcher ingress port " << name;
-        m_ingress_launchers[name] = node->prepare_launcher(
-            m_resources.resources().partition(m_default_partition_id).runnable().launch_control());
-        apply_callback(m_ingress_launchers[name], name);
+
+        this->child_launchable_start(name, node);
+
+        // m_ingress_launchers[name] = node->prepare_launcher(
+        //     m_resources.resources().partition(m_default_partition_id).runnable().launch_control());
+        // apply_callback(m_ingress_launchers[name], name);
     }
 
-    DVLOG(10) << info() << " issuing start request";
+    this->mark_started();
 
-    for (const auto& [name, launcher] : m_egress_launchers)
-    {
-        DVLOG(10) << info() << " launching egress port " << name;
-        m_egress_runners[name] = launcher->ignition();
-    }
+    // DVLOG(10) << info() << " issuing start request";
 
-    for (const auto& [name, launcher] : m_launchers)
-    {
-        DVLOG(10) << info() << " launching node " << name;
-        m_runners[name] = launcher->ignition();
-    }
+    // for (const auto& [name, launcher] : m_egress_launchers)
+    // {
+    //     DVLOG(10) << info() << " launching egress port " << name;
+    //     m_egress_runners[name] = launcher->ignition();
+    // }
 
-    for (const auto& [name, launcher] : m_ingress_launchers)
-    {
-        DVLOG(10) << info() << " launching ingress port " << name;
-        m_ingress_runners[name] = launcher->ignition();
-    }
+    // for (const auto& [name, launcher] : m_launchers)
+    // {
+    //     DVLOG(10) << info() << " launching node " << name;
+    //     m_runners[name] = launcher->ignition();
+    // }
 
-    m_egress_launchers.clear();
-    m_launchers.clear();
-    m_ingress_launchers.clear();
+    // for (const auto& [name, launcher] : m_ingress_launchers)
+    // {
+    //     DVLOG(10) << info() << " launching ingress port " << name;
+    //     m_ingress_runners[name] = launcher->ignition();
+    // }
 
-    DVLOG(10) << info() << " start has been initiated; use the is_running future to await on startup";
+    // m_egress_launchers.clear();
+    // m_launchers.clear();
+    // m_ingress_launchers.clear();
+
+    // DVLOG(10) << info() << " start has been initiated; use the is_running future to await on startup";
 }
 
-void SegmentInstance::do_service_stop()
-{
-    DVLOG(10) << info() << " issuing stop request";
+// void SegmentInstance::do_service_stop()
+// {
+//     DVLOG(10) << info() << " issuing stop request";
 
-    // we do not issue stop for port since they are nodes and stop has no effect
+//     // we do not issue stop for port since they are nodes and stop has no effect
 
-    for (const auto& [name, runner] : m_runners)
-    {
-        DVLOG(10) << info() << " issuing stop for node " << name;
-        runner->stop();
-    }
+//     for (const auto& [name, runner] : m_runners)
+//     {
+//         DVLOG(10) << info() << " issuing stop for node " << name;
+//         runner->stop();
+//     }
 
-    DVLOG(10) << info() << " stop has been initiated; use the is_completed future to await on shutdown";
-}
+//     DVLOG(10) << info() << " stop has been initiated; use the is_completed future to await on shutdown";
+// }
 
-void SegmentInstance::do_service_kill()
-{
-    DVLOG(10) << info() << " issuing kill request";
+// void SegmentInstance::do_service_kill()
+// {
+//     DVLOG(10) << info() << " issuing kill request";
 
-    for (const auto& [name, runner] : m_ingress_runners)
-    {
-        DVLOG(10) << info() << " issuing kill for ingress port " << name;
-        runner->kill();
-    }
+//     for (const auto& [name, runner] : m_ingress_runners)
+//     {
+//         DVLOG(10) << info() << " issuing kill for ingress port " << name;
+//         runner->kill();
+//     }
 
-    for (const auto& [name, runner] : m_runners)
-    {
-        DVLOG(10) << info() << " issuing kill for node " << name;
-        runner->kill();
-    }
+//     for (const auto& [name, runner] : m_runners)
+//     {
+//         DVLOG(10) << info() << " issuing kill for node " << name;
+//         runner->kill();
+//     }
 
-    for (const auto& [name, runner] : m_egress_runners)
-    {
-        DVLOG(10) << info() << " issuing kill for egress port " << name;
-        runner->kill();
-    }
+//     for (const auto& [name, runner] : m_egress_runners)
+//     {
+//         DVLOG(10) << info() << " issuing kill for egress port " << name;
+//         runner->kill();
+//     }
 
-    DVLOG(10) << info() << " kill has been initiated; use the is_completed future to await on shutdown";
-}
+//     DVLOG(10) << info() << " kill has been initiated; use the is_completed future to await on shutdown";
+// }
 
-void SegmentInstance::do_service_await_live()
-{
-    DVLOG(10) << info() << " await_live started";
-    for (const auto& [name, runner] : m_ingress_runners)
-    {
-        DVLOG(10) << info() << " awaiting on ingress port " << name;
-        runner->await_live();
-    }
-    for (const auto& [name, runner] : m_runners)
-    {
-        DVLOG(10) << info() << " awaiting on  " << name;
-        runner->await_live();
-    }
-    for (const auto& [name, runner] : m_egress_runners)
-    {
-        DVLOG(10) << info() << " awaiting on egress port " << name;
-        runner->await_live();
-    }
-    DVLOG(10) << info() << " await_live complete";
-}
+// void SegmentInstance::do_service_await_live()
+// {
+//     DVLOG(10) << info() << " await_live started";
+//     for (const auto& [name, runner] : m_ingress_runners)
+//     {
+//         DVLOG(10) << info() << " awaiting on ingress port " << name;
+//         runner->await_live();
+//     }
+//     for (const auto& [name, runner] : m_runners)
+//     {
+//         DVLOG(10) << info() << " awaiting on  " << name;
+//         runner->await_live();
+//     }
+//     for (const auto& [name, runner] : m_egress_runners)
+//     {
+//         DVLOG(10) << info() << " awaiting on egress port " << name;
+//         runner->await_live();
+//     }
+//     DVLOG(10) << info() << " await_live complete";
+// }
 
-void SegmentInstance::do_service_await_join()
-{
-    DVLOG(10) << info() << " join started";
-    std::exception_ptr first_exception = nullptr;
+// void SegmentInstance::do_service_await_join()
+// {
+//     DVLOG(10) << info() << " join started";
+//     std::exception_ptr first_exception = nullptr;
 
-    auto check = [&first_exception](mrc::runnable::Runner& runner) {
-        try
-        {
-            runner.await_join();
-        } catch (...)
-        {
-            if (first_exception == nullptr)
-            {
-                first_exception = std::current_exception();
-            }
-        }
-    };
+//     auto check = [&first_exception](mrc::runnable::Runner& runner) {
+//         try
+//         {
+//             runner.await_join();
+//         } catch (...)
+//         {
+//             if (first_exception == nullptr)
+//             {
+//                 first_exception = std::current_exception();
+//             }
+//         }
+//     };
 
-    for (const auto& [name, runner] : m_ingress_runners)
-    {
-        DVLOG(10) << info() << " awaiting on ingress port join to " << name;
-        check(*runner);
-    }
-    for (const auto& [name, runner] : m_runners)
-    {
-        DVLOG(10) << info() << " awaiting on join to " << name;
-        check(*runner);
-    }
-    for (const auto& [name, runner] : m_egress_runners)
-    {
-        DVLOG(10) << info() << " awaiting on egress port join to " << name;
-        check(*runner);
-    }
-    DVLOG(10) << info() << " join complete";
-    if (first_exception)
-    {
-        LOG(ERROR) << "segment::SegmentInstance - an exception was caught while awaiting on one or more nodes - "
-                      "rethrowing";
-        rethrow_exception(std::move(first_exception));
-    }
-}
+//     for (const auto& [name, runner] : m_ingress_runners)
+//     {
+//         DVLOG(10) << info() << " awaiting on ingress port join to " << name;
+//         check(*runner);
+//     }
+//     for (const auto& [name, runner] : m_runners)
+//     {
+//         DVLOG(10) << info() << " awaiting on join to " << name;
+//         check(*runner);
+//     }
+//     for (const auto& [name, runner] : m_egress_runners)
+//     {
+//         DVLOG(10) << info() << " awaiting on egress port join to " << name;
+//         check(*runner);
+//     }
+//     DVLOG(10) << info() << " join complete";
+//     if (first_exception)
+//     {
+//         LOG(ERROR) << "segment::SegmentInstance - an exception was caught while awaiting on one or more nodes - "
+//                       "rethrowing";
+//         rethrow_exception(std::move(first_exception));
+//     }
+// }
 
 void SegmentInstance::attach_manifold(std::shared_ptr<manifold::Interface> manifold)
 {

@@ -458,55 +458,6 @@ std::shared_ptr<pipeline::IExecutor> Executor::get_executor() const
 //     return wrapped_task_future;
 // }
 
-/** PyBoostFuture impls -- move to own file **/
-PyBoostFuture::PyBoostFuture()
-{
-    m_future = m_promise.get_future();
-}
-
-py::object PyBoostFuture::result()
-{
-    {
-        // Release the GIL until we have a value
-        py::gil_scoped_release nogil;
-
-        auto current_thread_id = std::this_thread::get_id();
-
-        m_future.wait();
-
-        auto new_thread_id = std::this_thread::get_id();
-
-        if (current_thread_id != new_thread_id)
-        {
-            LOG(WARNING) << "Thread IDs different!";
-        }
-    }
-
-    return m_future.get();
-}
-
-py::object PyBoostFuture::py_result()
-{
-    try
-    {
-        // Get the result
-        return std::move(this->result());
-    } catch (py::error_already_set& err)
-    {
-        LOG(ERROR) << "Exception occurred during Future.result(). Error: " << std::string(err.what());
-        throw;
-    } catch (std::exception& err)
-    {
-        LOG(ERROR) << "Exception occurred during Future.result(). Error: " << std::string(err.what());
-        return py::none();
-    }
-}
-
-void PyBoostFuture::set_result(py::object&& obj)
-{
-    m_promise.set_value(std::move(obj));
-}
-
 pybind11::object PySharedState::get_result()
 {
     std::unique_lock lock(m_mutex);

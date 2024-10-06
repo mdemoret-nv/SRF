@@ -47,8 +47,10 @@ namespace mrc::pipeline {
 
 PipelineInstance::PipelineInstance(std::shared_ptr<const PipelineDefinition> definition,
                                    resources::Manager& resources) :
+
+  AsyncService("pipeline::PipelineInstance"),
   PipelineResources(resources),
-  Service("pipeline::PipelineInstance"),
+  runnable::RunnableResourcesProvider(resources.partition(0).runnable()),
   m_definition(std::move(definition))
 {
     CHECK(m_definition);
@@ -57,7 +59,7 @@ PipelineInstance::PipelineInstance(std::shared_ptr<const PipelineDefinition> def
 
 PipelineInstance::~PipelineInstance()
 {
-    Service::call_in_destructor();
+    AsyncService::call_in_destructor();
 }
 
 void PipelineInstance::update()
@@ -68,11 +70,11 @@ void PipelineInstance::update()
         manifold->update_outputs();
         manifold->start();
     }
-    for (const auto& [address, segment] : m_segments)
-    {
-        segment->service_start();
-        segment->service_await_live();
-    }
+    // for (const auto& [address, segment] : m_segments)
+    // {
+    //     segment->service_start();
+    //     segment->service_await_live();
+    // }
     mark_joinable();
 }
 
@@ -122,7 +124,7 @@ void PipelineInstance::create_segment(const SegmentAddress& address, std::uint32
 
             auto [id, rank] = segment_address_decode(address);
             auto definition = m_definition->find_segment(id);
-            auto segment    = std::make_unique<segment::SegmentInstance>(definition, rank, *this, partition_id);
+            auto segment    = std::make_shared<segment::SegmentInstance>(definition, rank, *this, partition_id);
 
             for (const auto& name : definition->egress_port_names())
             {
@@ -182,26 +184,34 @@ void PipelineInstance::mark_joinable()
         m_joinable = true;
         VLOG(10) << "Marking pipeline joinable. Segments: " << m_segments.size()
                  << " Manifolds: " << m_manifolds.size();
-        m_joinable_promise.set_value();
+        // m_joinable_promise.set_value();
+
+        // For all segments, add them as children
+        for (const auto& [address, segment] : m_segments)
+        {
+            this->child_service_start(segment, true);
+        }
+
+        this->mark_started();
     }
 }
 
-void PipelineInstance::do_service_start() {}
+void PipelineInstance::do_service_start(std::stop_token stop_token) {}
 
-void PipelineInstance::do_service_await_live()
-{
-    m_joinable_future.get();
-}
+// void PipelineInstance::do_service_await_live()
+// {
+//     m_joinable_future.get();
+// }
 
-void PipelineInstance::do_service_stop()
-{
-    mark_joinable();
+// void PipelineInstance::do_service_stop()
+// {
+//     mark_joinable();
 
-    for (auto& [id, segment] : m_segments)
-    {
-        stop_segment(id);
-    }
-}
+//     for (auto& [id, segment] : m_segments)
+//     {
+//         stop_segment(id);
+//     }
+// }
 
 void PipelineInstance::do_service_kill()
 {
@@ -213,38 +223,38 @@ void PipelineInstance::do_service_kill()
     }
 }
 
-void PipelineInstance::do_service_await_join()
-{
-    // std::unique_lock lock(m_mutex);
+// void PipelineInstance::do_service_await_join()
+// {
+//     // std::unique_lock lock(m_mutex);
 
-    // m_joinable_cv.wait(lock, [this] {
-    //     return m_joinable;
-    // });
+//     // m_joinable_cv.wait(lock, [this] {
+//     //     return m_joinable;
+//     // });
 
-    std::exception_ptr first_exception = nullptr;
-    m_joinable_future.get();
+//     std::exception_ptr first_exception = nullptr;
+//     m_joinable_future.get();
 
-    VLOG(10) << "PipelineInstance::do_service_await_join(). Segments: " << m_segments.size()
-             << " Manifolds: " << m_manifolds.size();
+//     VLOG(10) << "PipelineInstance::do_service_await_join(). Segments: " << m_segments.size()
+//              << " Manifolds: " << m_manifolds.size();
 
-    for (const auto& [address, segment] : m_segments)
-    {
-        try
-        {
-            segment->service_await_join();
-        } catch (...)
-        {
-            if (first_exception == nullptr)
-            {
-                first_exception = std::current_exception();
-            }
-        }
-    }
-    if (first_exception)
-    {
-        LOG(ERROR) << "pipeline::PipelineInstance - an exception was caught while awaiting on segments - rethrowing";
-        std::rethrow_exception(std::move(first_exception));
-    }
-}
+//     for (const auto& [address, segment] : m_segments)
+//     {
+//         try
+//         {
+//             segment->service_await_join();
+//         } catch (...)
+//         {
+//             if (first_exception == nullptr)
+//             {
+//                 first_exception = std::current_exception();
+//             }
+//         }
+//     }
+//     if (first_exception)
+//     {
+//         LOG(ERROR) << "pipeline::PipelineInstance - an exception was caught while awaiting on segments - rethrowing";
+//         std::rethrow_exception(std::move(first_exception));
+//     }
+// }
 
 }  // namespace mrc::pipeline

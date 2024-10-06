@@ -18,11 +18,120 @@
 #pragma once
 
 #include <boost/fiber/all.hpp>
-
-namespace mrc::userspace_threads {
+#include <boost/fiber/condition_variable.hpp>
+#include <boost/fiber/recursive_mutex.hpp>
 
 // Suppress naming conventions in this file to allow matching std and boost libraries
 // NOLINTBEGIN(readability-identifier-naming)
+
+namespace mrc::userspace_threads {
+namespace detail {
+
+// Base implementation of shared_promise. Follows boost::fibers::promise<T>
+template <typename T>
+struct shared_promise_base
+{
+  public:
+    shared_promise_base() : m_promise(), m_shared_future(m_promise.get_future()) {}
+
+    void set_exception(std::exception_ptr p)
+    {
+        m_promise.set_exception(p);
+    }
+
+    boost::fibers::shared_future<T> get_future()
+    {
+        return m_shared_future;
+    }
+
+    void swap(shared_promise_base& other) noexcept
+    {
+        std::swap(m_promise, other.m_promise);
+        std::swap(m_shared_future, other.m_shared_future);
+    }
+
+  protected:
+    boost::fibers::promise<T> m_promise;
+    boost::fibers::shared_future<T> m_shared_future;
+};
+
+}  // namespace detail
+
+// Wrapper for a promise that holds an internal reference to a shared future. Reduces the need to have both a
+// promise and shared future member variables
+template <typename T>
+struct shared_promise : private detail::shared_promise_base<T>
+{
+  private:
+    using base_t = detail::shared_promise_base<T>;
+
+  public:
+    shared_promise() = default;
+
+    void set_value(const T& value)
+    {
+        base_t::m_promise.set_value(value);
+    }
+
+    void set_value(T&& value)
+    {
+        base_t::m_promise.set_value(std::move(value));
+    }
+
+    void swap(shared_promise& other) noexcept
+    {
+        base_t::swap(other);
+    }
+
+    using base_t::get_future;
+    using base_t::set_exception;
+};
+
+template <typename T>
+struct shared_promise<T&> : private detail::shared_promise_base<T&>
+{
+  private:
+    using base_t = detail::shared_promise_base<T&>;
+
+  public:
+    shared_promise() = default;
+
+    void set_value(T& value)
+    {
+        base_t::m_promise.set_value(value);
+    }
+
+    void swap(shared_promise& other) noexcept
+    {
+        base_t::swap(other);
+    }
+
+    using base_t::get_future;
+    using base_t::set_exception;
+};
+
+template <>
+struct shared_promise<void> : private detail::shared_promise_base<void>
+{
+  private:
+    using base_t = detail::shared_promise_base<void>;
+
+  public:
+    shared_promise() = default;
+
+    void set_value()
+    {
+        base_t::m_promise.set_value();
+    }
+
+    void swap(shared_promise& other) noexcept
+    {
+        base_t::swap(other);
+    }
+
+    using base_t::get_future;
+    using base_t::set_exception;
+};
 
 using mutex = boost::fibers::mutex;
 
@@ -64,6 +173,6 @@ static void sleep_until(std::chrono::time_point<Clock, Duration> const& sleep_ti
     boost::this_fiber::sleep_until(sleep_time_point);
 }
 
-// NOLINTEND(readability-identifier-naming)
-
 }  // namespace mrc::userspace_threads
+
+// NOLINTEND(readability-identifier-naming)

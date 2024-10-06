@@ -22,14 +22,17 @@
 #include "mrc/options/resources.hpp"
 #include "mrc/options/topology.hpp"
 
-namespace mrc {
-
 // Suppress naming conventions in this file to allow matching std and boost libraries
 // NOLINTBEGIN(readability-identifier-naming)
+
+namespace mrc {
 
 // Typedefs
 template <typename T>
 using Promise = userspace_threads::promise<T>;
+
+template <typename T>
+using SharedPromise = userspace_threads::shared_promise<T>;
 
 template <typename T>
 using Future = userspace_threads::future<T>;
@@ -37,11 +40,16 @@ using Future = userspace_threads::future<T>;
 template <typename T>
 using SharedFuture = userspace_threads::shared_future<T>;
 
+template <typename SignatureT>
+using PackagedTask = userspace_threads::packaged_task<SignatureT>;
+
 using Mutex = userspace_threads::mutex;
 
 using RecursiveMutex = userspace_threads::recursive_mutex;
 
 using CondV = userspace_threads::cv;
+
+using CondVarAny = userspace_threads::cv_any;
 
 using MachineID  = std::uint64_t;
 using InstanceID = std::uint64_t;

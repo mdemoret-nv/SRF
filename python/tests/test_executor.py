@@ -31,6 +31,21 @@ node_fn_type = typing.Callable[[mrc.Builder], mrc.SegmentObject]
 
 
 @pytest.fixture
+def source_noexception():
+
+    def build(builder: mrc.Builder):
+
+        def gen_data_and_raise():
+            for i in range(1000):
+                print("Yielding {}".format(i))
+                yield i
+
+        return builder.make_source("source", gen_data_and_raise)
+
+    return build
+
+
+@pytest.fixture
 def source_pyexception():
 
     def build(builder: mrc.Builder):
@@ -70,6 +85,25 @@ def sink():
     def build(builder: mrc.Builder):
 
         def sink_on_next(data):
+            print("Got value: {}".format(data))
+
+        def sink_on_complete():
+            print("Sink completed")
+
+        return builder.make_sink("sink", sink_on_next, None, sink_on_complete)
+
+    return build
+
+
+@pytest.fixture
+def sink_pyexception():
+
+    def build(builder: mrc.Builder):
+
+        def sink_on_next(data):
+            if (data == 1):
+                raise RuntimeError("Raised python error")
+
             print("Got value: {}".format(data))
 
         def sink_on_complete():
@@ -135,6 +169,19 @@ def test_pyexception_in_source(source_pyexception: node_fn_type,
                                build_executor: build_executor_type):
 
     pipe = build_pipeline(source_pyexception, sink)
+
+    executor = build_executor(pipe)
+
+    with pytest.raises(RuntimeError):
+        executor.join()
+
+
+def test_pyexception_in_sink(source_noexception: node_fn_type,
+                             sink_pyexception: node_fn_type,
+                             build_pipeline: build_pipeline_type,
+                             build_executor: build_executor_type):
+
+    pipe = build_pipeline(source_noexception, sink_pyexception)
 
     executor = build_executor(pipe)
 

@@ -232,21 +232,6 @@ class Executor
     std::shared_ptr<pipeline::IExecutor> m_exec;
 };
 
-class PyBoostFuture
-{
-  public:
-    PyBoostFuture();
-
-    pybind11::object result();
-    pybind11::object py_result();
-
-    void set_result(pybind11::object&& obj);
-
-  private:
-    std::promise<pybind11::object> m_promise{};
-    std::future<pybind11::object> m_future{};
-};
-
 #pragma GCC visibility pop
 
 }  // namespace mrc::pymrc

@@ -29,7 +29,9 @@
 #include "mrc/runnable/launch_control.hpp"
 #include "mrc/runnable/launch_options.hpp"
 #include "mrc/runnable/launcher.hpp"
+#include "mrc/runnable/runnable_resources.hpp"
 #include "mrc/runnable/runner.hpp"
+#include "mrc/segment/utils.hpp"
 
 #include <glog/logging.h>
 
@@ -41,90 +43,154 @@
 namespace mrc::pipeline {
 
 Manager::Manager(std::shared_ptr<PipelineDefinition> pipeline, resources::Manager& resources) :
-  Service("pipeline::Manager"),
+  AsyncService("pipeline::Manager"),
+  runnable::RunnableResourcesProvider(resources.partition(0).runnable()),
   m_pipeline(std::move(pipeline)),
-  m_resources(resources)
+  m_resources(resources),
+  m_instance(std::make_shared<PipelineInstance>(m_pipeline, m_resources))
 {
     CHECK(m_pipeline);
     CHECK_GE(m_resources.partition_count(), 1);
-    service_start();
+    // service_start();
 }
 
 Manager::~Manager()
 {
-    Service::call_in_destructor();
+    AsyncService::call_in_destructor();
 }
 
 void Manager::push_updates(SegmentAddresses&& segment_addresses)
 {
-    CHECK(m_update_channel);
+    VLOG(10) << this->debug_prefix() << ": starting update";
 
-    m_update_channel->await_write({ControlMessageType::Update, std::move(segment_addresses)});
-}
+    auto cur_segments = extract_keys(m_current_segments);
+    auto new_segments = extract_keys(segment_addresses);
 
-void Manager::do_service_start()
-{
-    mrc::runnable::LaunchOptions main;
-    main.engine_factory_name = "main";
-    main.pe_count            = 1;
-    main.engines_per_pe      = 1;
+    // set of segments to remove
+    std::set<SegmentAddress> create_segments;
+    std::set_difference(new_segments.begin(),
+                        new_segments.end(),
+                        cur_segments.begin(),
+                        cur_segments.end(),
+                        std::inserter(create_segments, create_segments.end()));
+    DVLOG(10) << this->debug_prefix() << create_segments.size() << " segments will be created";
 
-    auto instance    = std::make_unique<PipelineInstance>(m_pipeline, m_resources);
-    auto controller  = std::make_unique<Controller>(std::move(instance));
-    m_update_channel = std::make_unique<node::WritableEntrypoint<ControlMessage>>();
+    // set of segments to remove
+    std::set<SegmentAddress> remove_segments;
+    std::set_difference(cur_segments.begin(),
+                        cur_segments.end(),
+                        new_segments.begin(),
+                        new_segments.end(),
+                        std::inserter(remove_segments, remove_segments.end()));
+    DVLOG(10) << this->debug_prefix() << remove_segments.size() << " segments marked for removal";
 
-    // form edge
-    mrc::make_edge(*m_update_channel, *controller);
-
-    // launch controller
-    auto launcher = resources().partition(0).runnable().launch_control().prepare_launcher(main, std::move(controller));
-
-    // explicit capture and rethrow the error
-    launcher->apply([this](mrc::runnable::Runner& runner) {
-        runner.on_completion_callback([this](bool ok) {
-            if (!ok)
-            {
-                LOG(ERROR) << "error detected on controller";
-            }
-        });
-    });
-    m_controller = launcher->ignition();
-}
-
-void Manager::do_service_await_live()
-{
-    m_controller->await_live();
-}
-
-void Manager::do_service_stop()
-{
-    VLOG(10) << "stop: closing update channels";
-    m_update_channel->await_write({ControlMessageType::Stop});
-}
-
-void Manager::do_service_kill()
-{
-    VLOG(10) << "kill: closing update channels; issuing kill to controllers";
-    m_update_channel->await_write({ControlMessageType::Kill});
-}
-
-void Manager::do_service_await_join()
-{
-    std::exception_ptr ptr;
-    try
+    // construct new segments and attach to manifold
+    for (const auto& address : create_segments)
     {
-        m_controller->runnable_as<Controller>().await_on_pipeline();
-    } catch (...)
-    {
-        ptr = std::current_exception();
+        auto partition_id = segment_addresses.at(address);
+        DVLOG(10) << this->debug_prefix() << ": create segment for address " << ::mrc::segment::info(address)
+                  << " on resource partition: " << partition_id;
+        m_instance->create_segment(address, partition_id);
     }
-    m_update_channel.reset();
-    m_controller->await_join();
-    if (ptr)
+
+    // detach from manifold or stop old segments
+    for (const auto& address : remove_segments)
     {
-        std::rethrow_exception(ptr);
+        DVLOG(10) << this->debug_prefix() << ": stop segment for address " << ::mrc::segment::info(address);
+        m_instance->stop_segment(address);
     }
+
+    // m_pipeline->manifold_update_inputs();
+
+    m_instance->update();
+
+    // when ready issue update
+    // this should start all segments
+    // m_pipeline->update();
+
+    // update manifolds
+
+    // await old segments
+
+    // update current segments
+    m_current_segments = std::move(segment_addresses);
+
+    VLOG(10) << this->debug_prefix() << ": update complete";
+
+    // CHECK(m_update_channel);
+
+    // m_controller->push_updates({ControlMessageType::Update, std::move(segment_addresses)});
 }
+
+void Manager::do_service_start(std::stop_token stop_token)
+{
+    // mrc::runnable::LaunchOptions main;
+    // main.engine_factory_name = "main";
+    // main.pe_count            = 1;
+    // main.engines_per_pe      = 1;
+
+    // m_instance = std::make_shared<PipelineInstance>(m_pipeline, m_resources);
+    // auto controller = std::make_unique<Controller>(std::move(instance));
+
+    this->child_service_start(m_instance, true);
+
+    this->mark_started();
+
+    // m_update_channel = std::make_unique<node::WritableEntrypoint<ControlMessage>>();
+
+    // // form edge
+    // mrc::make_edge(*m_update_channel, *controller);
+
+    // // launch controller
+    // auto launcher = resources().partition(0).runnable().launch_control().prepare_launcher(main,
+    // std::move(controller));
+
+    // // explicit capture and rethrow the error
+    // launcher->apply([this](mrc::runnable::Runner& runner) {
+    //     runner.on_completion_callback([this](bool ok) {
+    //         if (!ok)
+    //         {
+    //             LOG(ERROR) << "error detected on controller";
+    //         }
+    //     });
+    // });
+    // m_controller = launcher->ignition();
+}
+
+// void Manager::do_service_await_live()
+// {
+//     m_controller->await_live();
+// }
+
+// void Manager::do_service_stop()
+// {
+//     VLOG(10) << "stop: closing update channels";
+//     m_update_channel->await_write({ControlMessageType::Stop});
+// }
+
+// void Manager::do_service_kill()
+// {
+//     VLOG(10) << "kill: closing update channels; issuing kill to controllers";
+//     m_update_channel->await_write({ControlMessageType::Kill});
+// }
+
+// void Manager::do_service_await_join()
+// {
+//     std::exception_ptr ptr;
+//     try
+//     {
+//         m_controller->runnable_as<Controller>().await_on_pipeline();
+//     } catch (...)
+//     {
+//         ptr = std::current_exception();
+//     }
+//     m_update_channel.reset();
+//     m_controller->await_join();
+//     if (ptr)
+//     {
+//         std::rethrow_exception(ptr);
+//     }
+// }
 
 resources::Manager& Manager::resources()
 {

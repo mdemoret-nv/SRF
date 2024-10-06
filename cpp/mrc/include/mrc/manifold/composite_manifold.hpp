@@ -17,6 +17,7 @@
 
 #pragma once
 
+#include "mrc/core/task_queue.hpp"
 #include "mrc/edge/edge_builder.hpp"
 #include "mrc/manifold/egress.hpp"
 #include "mrc/manifold/ingress.hpp"

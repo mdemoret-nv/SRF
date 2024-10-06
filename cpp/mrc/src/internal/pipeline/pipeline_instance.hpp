@@ -20,6 +20,7 @@
 #include "internal/pipeline/pipeline_resources.hpp"
 #include "internal/service.hpp"
 
+#include "mrc/core/async_service.hpp"
 #include "mrc/types.hpp"
 
 #include <cstdint>
@@ -40,7 +41,9 @@ struct Interface;
 namespace mrc::pipeline {
 class PipelineDefinition;
 
-class PipelineInstance final : public Service, public PipelineResources
+class PipelineInstance final : public AsyncService,
+                               public PipelineResources,
+                               public virtual runnable::RunnableResourcesProvider
 {
   public:
     PipelineInstance(std::shared_ptr<const PipelineDefinition> definition, resources::Manager& resources);
@@ -66,11 +69,11 @@ class PipelineInstance final : public Service, public PipelineResources
     void update();
 
   private:
-    void do_service_start() final;
-    void do_service_await_live() final;
-    void do_service_stop() final;
+    void do_service_start(std::stop_token stop_token) final;
+    // void do_service_await_live() final;
+    // void do_service_stop() final;
     void do_service_kill() final;
-    void do_service_await_join() final;
+    // void do_service_await_join() final;
 
     void mark_joinable();
 
@@ -79,7 +82,7 @@ class PipelineInstance final : public Service, public PipelineResources
 
     std::shared_ptr<const PipelineDefinition> m_definition;  // convert to pipeline::Pipeline
 
-    std::map<SegmentAddress, std::unique_ptr<segment::SegmentInstance>> m_segments;
+    std::map<SegmentAddress, std::shared_ptr<segment::SegmentInstance>> m_segments;
     std::map<PortName, std::shared_ptr<manifold::Interface>> m_manifolds;
 
     Mutex m_mutex;

@@ -110,6 +110,7 @@ add_library(libmrc
   src/public/codable/encoded_object.cpp
   src/public/codable/memory.cpp
   src/public/core/addresses.cpp
+  src/public/core/async_service.cpp
   src/public/core/bitmap.cpp
   src/public/core/fiber_pool.cpp
   src/public/core/logging.cpp
@@ -149,6 +150,7 @@ add_library(libmrc
   src/public/pipeline/system.cpp
   src/public/runnable/context.cpp
   src/public/runnable/launcher.cpp
+  src/public/runnable/runnable_resources.cpp
   src/public/runnable/runnable.cpp
   src/public/runnable/runner.cpp
   src/public/runnable/types.cpp

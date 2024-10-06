@@ -19,6 +19,7 @@
 
 #include "internal/service.hpp"
 
+#include "mrc/core/async_service.hpp"
 #include "mrc/runnable/runner.hpp"
 #include "mrc/types.hpp"
 
@@ -40,7 +41,7 @@ class SegmentDefinition;
 class BuilderDefinition;
 
 // todo(ryan) - inherit from service
-class SegmentInstance final : public Service
+class SegmentInstance final : public AsyncService, public virtual runnable::RunnableResourcesProvider
 {
   public:
     SegmentInstance(std::shared_ptr<const SegmentDefinition> definition,
@@ -61,11 +62,11 @@ class SegmentInstance final : public Service
     const std::string& info() const;
 
   private:
-    void do_service_start() final;
-    void do_service_await_live() final;
-    void do_service_stop() final;
-    void do_service_kill() final;
-    void do_service_await_join() final;
+    void do_service_start(std::stop_token stop_token) final;
+    // void do_service_await_live() final;
+    // void do_service_stop() final;
+    // void do_service_kill() final;
+    // void do_service_await_join() final;
 
     void callback_on_state_change(const std::string& name, const mrc::runnable::Runner::State& new_state);
 
