@@ -23,7 +23,11 @@ Checks: >
   misc-throw-by-value-catch-by-reference,
   misc-include-cleaner
 
-#WarningsAsErrors: '*'
+WarningsAsErrors: >
+  *,
+  -clang-diagnostic-unused-command-line-argument,
+  -clang-diagnostic-ignored-optimization-argument
+
 HeaderFilterRegex: '.*\/include\/mrc\/.*'
 AnalyzeTemporaryDtors: false
 FormatStyle: file

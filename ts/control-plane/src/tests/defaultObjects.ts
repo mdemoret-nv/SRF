@@ -15,16 +15,7 @@ import { ManifoldInstance } from "@mrc/common/models/manifold_instance";
 import { PipelineInstance } from "@mrc/common/models/pipeline_instance";
 import { SegmentInstance } from "@mrc/common/models/segment_instance";
 import { PipelineDefinitionWrapper } from "@mrc/common/pipelineDefinition";
-import {
-   generateId,
-   generatePartitionAddress,
-   generatePipelineAddress,
-   generateSegmentAddress,
-   generateSegmentHash,
-   hashProtoMessage,
-   hashName16,
-   stringToBytes,
-} from "@mrc/common/utils";
+import { generateId, generatePartitionAddress, hashProtoMessage, hashName16 } from "@mrc/common/utils";
 import {
    ManifoldOptions_Policy,
    PipelineConfiguration,
@@ -35,7 +26,8 @@ import {
 const default_resource_state: IResourceState = {
    requestedStatus: ResourceRequestedStatus.Requested_Initialized,
    actualStatus: ResourceActualStatus.Actual_Unknown,
-   refCount: 0,
+   dependees: [],
+   dependers: [],
 };
 
 export const executor: IExecutor = Executor.create("localhost:1234").get_interface();

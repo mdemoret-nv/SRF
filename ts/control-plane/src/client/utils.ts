@@ -11,7 +11,7 @@ export async function get_first_event(
 ) {
    let first_event: Event | undefined;
 
-   if (incoming_events instanceof AsyncIterableX<Event>) {
+   if (incoming_events instanceof AsyncIterableX) {
       first_event = await incoming_events.first({
          predicate,
       });

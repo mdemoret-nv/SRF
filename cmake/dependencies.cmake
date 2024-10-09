@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,7 +15,9 @@
 
 list(APPEND CMAKE_MESSAGE_CONTEXT "dep")
 
-morpheus_utils_print_config()
+if (VERBOSE)
+  morpheus_utils_print_config()
+endif()
 
 include(${CMAKE_CURRENT_LIST_DIR}/Configure_UCXX.cmake)
 
@@ -24,21 +26,25 @@ morpheus_utils_initialize_cpm(MRC_CACHE_DIR)
 # Start with CUDA. Need to add it to our export set
 rapids_find_package(CUDAToolkit
   REQUIRED
-  BUILD_EXPORT_SET ${PROJECT_NAME}-core-exports
-  INSTALL_EXPORT_SET ${PROJECT_NAME}-core-exports
+  BUILD_EXPORT_SET ${PROJECT_NAME}-exports
+  INSTALL_EXPORT_SET ${PROJECT_NAME}-exports
 )
 
 # Boost
 # =====
 morpheus_utils_configure_boost()
 
-# # UCX
-# # ===
-# morpheus_utils_configure_ucx()
+# UCX
+# ===
+morpheus_utils_configure_ucx()
 
 # hwloc
 # =====
 morpheus_utils_configure_hwloc()
+
+# cccl
+# =========
+morpheus_utils_configure_cccl()
 
 # NVIDIA RAPIDS RMM
 # =================
@@ -48,8 +54,8 @@ morpheus_utils_configure_rmm()
 # ======
 rapids_find_package(gflags REQUIRED
   GLOBAL_TARGETS gflags
-  BUILD_EXPORT_SET ${PROJECT_NAME}-core-exports
-  INSTALL_EXPORT_SET ${PROJECT_NAME}-core-exports
+  BUILD_EXPORT_SET ${PROJECT_NAME}-exports
+  INSTALL_EXPORT_SET ${PROJECT_NAME}-exports
 )
 
 # glog
@@ -72,8 +78,8 @@ rapids_find_package(gRPC REQUIRED
   gRPC::address_sorting gRPC::gpr gRPC::grpc gRPC::grpc_unsecure gRPC::grpc++ gRPC::grpc++_alts gRPC::grpc++_error_details gRPC::grpc++_reflection
   gRPC::grpc++_unsecure gRPC::grpc_plugin_support gRPC::grpcpp_channelz gRPC::upb gRPC::grpc_cpp_plugin gRPC::grpc_csharp_plugin gRPC::grpc_node_plugin
   gRPC::grpc_objective_c_plugin gRPC::grpc_php_plugin gRPC::grpc_python_plugin gRPC::grpc_ruby_plugin
-  BUILD_EXPORT_SET ${PROJECT_NAME}-core-exports
-  INSTALL_EXPORT_SET ${PROJECT_NAME}-core-exports
+  BUILD_EXPORT_SET ${PROJECT_NAME}-exports
+  INSTALL_EXPORT_SET ${PROJECT_NAME}-exports
 )
 
 # RxCpp
@@ -84,8 +90,8 @@ morpheus_utils_configure_rxcpp()
 # ======
 rapids_find_package(nlohmann_json REQUIRED
   GLOBAL_TARGETS nlohmann_json::nlohmann_json
-  BUILD_EXPORT_SET ${PROJECT_NAME}-core-exports
-  INSTALL_EXPORT_SET ${PROJECT_NAME}-core-exports
+  BUILD_EXPORT_SET ${PROJECT_NAME}-exports
+  INSTALL_EXPORT_SET ${PROJECT_NAME}-exports
   FIND_ARGS
   CONFIG
 )
@@ -93,10 +99,6 @@ rapids_find_package(nlohmann_json REQUIRED
 # prometheus
 # =========
 morpheus_utils_configure_prometheus_cpp()
-
-# libcudacxx
-# =========
-morpheus_utils_configure_libcudacxx()
 
 # libuv
 # ======
@@ -123,7 +125,7 @@ if(MRC_BUILD_BENCHMARKS)
   # ================
   rapids_find_package(benchmark REQUIRED
     GLOBAL_TARGETS benchmark::benchmark
-    BUILD_EXPORT_SET ${PROJECT_NAME}-core-exports
+    BUILD_EXPORT_SET ${PROJECT_NAME}-exports
 
     # No install set
     FIND_ARGS
@@ -136,7 +138,7 @@ if(MRC_BUILD_TESTS)
   # ===========
   rapids_find_package(GTest REQUIRED
     GLOBAL_TARGETS GTest::gtest GTest::gmock GTest::gtest_main GTest::gmock_main
-    BUILD_EXPORT_SET ${PROJECT_NAME}-core-exports
+    BUILD_EXPORT_SET ${PROJECT_NAME}-exports
 
     # No install set
     FIND_ARGS

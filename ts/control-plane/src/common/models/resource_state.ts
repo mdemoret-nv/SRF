@@ -1,10 +1,14 @@
-import { IResourceState } from "@mrc/common/entities";
-import { ResourceActualStatus, ResourceRequestedStatus } from "@mrc/proto/mrc/protos/architect_state";
+import { IResourceDefinition, IResourceState } from "@mrc/common/entities";
+import {
+   ResourceActualStatus,
+   ResourceDefinition,
+   ResourceRequestedStatus,
+} from "@mrc/proto/mrc/protos/architect_state";
 
 export class ResourceState implements IResourceState {
    // requestedStatus: ResourceRequestedStatus = ResourceRequestedStatus.Requested_Initialized;
    // actualStatus: ResourceActualStatus = ResourceActualStatus.Actual_Unknown;
-   // refCount = 0;
+   // dependees = []
 
    private _interface: IResourceState;
 
@@ -20,8 +24,12 @@ export class ResourceState implements IResourceState {
       return this._interface.actualStatus;
    }
 
-   public get refCount(): number {
-      return this._interface.refCount;
+   public get dependees(): ResourceDefinition[] {
+      return this._interface.dependees;
+   }
+
+   public get dependers(): ResourceDefinition[] {
+      return this._interface.dependers;
    }
 
    public get_interface() {
@@ -32,7 +40,29 @@ export class ResourceState implements IResourceState {
       return new ResourceState({
          requestedStatus: ResourceRequestedStatus.Requested_Initialized,
          actualStatus: ResourceActualStatus.Actual_Unknown,
-         refCount: 0,
+         dependees: [],
+         dependers: [],
       });
    }
 }
+
+export const addDependee = (dependee: IResourceDefinition, state: IResourceState): void => {
+   if (
+      state.dependees.some((d) => d.resourceId === dependee.resourceType && d.resourceType === dependee.resourceType)
+   ) {
+      throw new Error("Dependee already exists in the list");
+   }
+   state.dependees.push(dependee as ResourceDefinition);
+};
+
+export const removeDependee = (dependee: IResourceDefinition, state: IResourceState): void => {
+   const initialLength = state.dependees.length;
+   state.dependees = state.dependees.filter(
+      (d) => d.resourceId !== dependee.resourceId && d.resourceType === dependee.resourceType
+   );
+   const finalLength = state.dependees.length;
+
+   if (initialLength - finalLength !== 1) {
+      throw new Error("Exactly one dependee should be removed");
+   }
+};

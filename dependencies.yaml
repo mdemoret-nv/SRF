@@ -3,7 +3,7 @@ files:
   all:
     output: conda
     matrix:
-      cuda: ["11.8"]
+      cuda: ["12.1"]
       arch: [x86_64]
     includes:
       - build
@@ -15,12 +15,13 @@ files:
       - ci
       - examples
       - documentation
+      - python
       - cudatoolkit
 
   ci:
     output: conda
     matrix:
-      cuda: ["11.8"]
+      cuda: ["12.1"]
       arch: [x86_64]
     includes:
       - build
@@ -29,6 +30,7 @@ files:
       - benchmarking
       - ci
       - documentation
+      - python
       - cudatoolkit
 
   checks:
@@ -36,13 +38,11 @@ files:
     includes:
       - checks
 
-
 channels:
   - conda-forge
   - rapidsai
-  - nvidia/label/cuda-11.8.0
-  - nvidia
   - rapidsai-nightly
+  - nvidia
 
 dependencies:
 
@@ -50,15 +50,15 @@ dependencies:
     common:
       - output_types: [conda]
         packages:
-          - boost-cpp=1.82
+          - boost-cpp=1.84
           - ccache
           - cmake=3.27
           - cuda-nvcc
           - cxx-compiler
           - glog=0.6
-          - gtest=1.13
+          - gtest=1.14
           - gxx=11.2
-          - libgrpc=1.54.0
+          - libgrpc=1.59
           - libhwloc=2.9.2
           - librmm=24.04
           - ninja=1.10
@@ -82,68 +82,73 @@ dependencies:
       - output_types: [conda]
         packages:
           - bash-completion
-          - clang-tools=17
-          - clang=17
-          - clangdev=17
-          - clangxx=17
+          - clang-tools=16
+          - clang=16
+          - clangdev=16
+          - clangxx=16
+          - flake8
           - gdb
-          - libclang-cpp=17
-          - libclang=17
-          - llvmdev=17
+          - libclang-cpp=16
+          - libclang=16
+          - llvmdev=16
+          - yapf
 
   code_style:
     common:
       - output_types: [conda]
         packages:
-          - flake8
-          - yapf
-          - include-what-you-use=0.21
+          - include-what-you-use=0.20
 
   testing:
     common:
       - output_types: [conda]
         packages:
           - pytest
-          - pytest-timeout
           - pytest-asyncio
+          - pytest-timeout
 
   benchmarking:
     common:
       - output_types: [conda]
         packages:
-          - benchmark=1.6.0
+          - benchmark=1.8.3
 
   ci:
     common:
       - output_types: [conda]
         packages:
           - codecov=2.1
-          - gcovr=5.0
+          - gcovr=5.2
           - pre-commit
 
   examples:
     common:
       - output_types: [conda]
         packages:
-          - numpy>=1.21
+          - numpy=1.24
 
   documentation:
     common:
       - output_types: [conda]
         packages:
           - doxygen=1.9.2
-          - graphviz=3.0
+          - python-graphviz
+
+  python:
+    common:
+      - output_types: [conda]
+        packages:
+          - python=3.10
 
   cudatoolkit:
     specific:
       - output_types: [conda]
         matrices:
           - matrix:
-              cuda: "11.8"
+              cuda: "12.1"
             packages:
-              - cuda-cudart-dev=11.8
-              - cuda-nvml-dev=11.8
-              - cuda-nvrtc-dev=11.8
-              - cuda-python=11.8.2
-              - cuda-tools=11.8
-              - cuda-version=11.8
+              - cuda-cudart-dev=12.1
+              - cuda-nvml-dev=12.1
+              - cuda-nvrtc-dev=12.1
+              - cuda-tools=12.1
+              - cuda-version=12.1

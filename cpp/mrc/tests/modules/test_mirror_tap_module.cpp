@@ -108,7 +108,7 @@ TEST_F(TestMirrorTapModule, InitailizationTest)
                              init_wrapper_mirrored);
 
     auto options = std::make_shared<Options>();
-    options->topology().user_cpuset("0-1");
+    options->topology().user_cpuset("0-3");
     options->topology().restrict_gpus(true);
 
     Executor executor(options);

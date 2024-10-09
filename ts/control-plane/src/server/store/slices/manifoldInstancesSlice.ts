@@ -2,23 +2,21 @@
 import { createSelector, createSlice, PayloadAction } from "@reduxjs/toolkit";
 
 import { pipelineInstancesRemove } from "@mrc/server/store/slices/pipelineInstancesSlice";
-import { IManifoldDefinition, IManifoldInstance, ISegmentInstance } from "@mrc/common/entities";
+import { IManifoldDefinition, IManifoldInstance, IResourceDefinition, ISegmentInstance } from "@mrc/common/entities";
 import {
    ResourceActualStatus,
    resourceActualStatusToNumber,
    resourceRequestedStatusToNumber,
+   ResourceType,
 } from "@mrc/proto/mrc/protos/architect_state";
 import { ResourceRequestedStatus } from "@mrc/proto/mrc/protos/architect_state";
 import { pipelineDefinitionsSelectById } from "@mrc/server/store/slices/pipelineDefinitionsSlice";
 import {
    segmentInstanceIncRefCount,
    segmentInstanceDecRefCount,
-   segmentInstancesSelectById,
    segmentInstancesSelectByNameAndPipelineDef,
-   segmentInstancesSelectAll,
    segmentInstancesSelectByAddress,
 } from "@mrc/server/store/slices/segmentInstancesSlice";
-import { startAppListening } from "@mrc/server/store/listener_middleware";
 import { createWatcher } from "@mrc/server/store/resourceStateWatcher";
 import { createWrappedEntityAdapter } from "@mrc/server/utils";
 import { AppDispatch, RootState, AppGetState } from "@mrc/server/store/store";
@@ -261,7 +259,6 @@ function determineManifoldSegmentMapping(state: RootState, manifold_def: IManifo
          );
       })
       .reduce((acc, val) => acc.concat(val), []);
-
    const active_output_segs = Object.entries(manifold_def.outputSegmentIds)
       .map(([segmentName]) => {
          // Find all segments that match this name and definition pair
@@ -351,10 +348,10 @@ function ensureOneLocal(dispatch: AppDispatch, state: RootState, manifold: IMani
       const requestedInvMap = isInput ? manifold.requestedOutputSegments : manifold.requestedInputSegments;
       const requestedInvRemotes: [string, boolean][] = filterMappingByLocality(requestedInvMap, false);
 
-      requestedInvRemotes.forEach(([segId, _]) => {
-         const seg = segmentInstancesSelectById(state, segId);
+      requestedInvRemotes.forEach(([segAddres, _]) => {
+         const seg = segmentInstancesSelectByAddress(state, segAddres);
          if (!seg) {
-            throw new Error(`Could not find segment with ID: ${segId}`);
+            throw new Error(`Could not find segment with ID: ${segAddres}`);
          }
 
          dispatch(
@@ -448,7 +445,12 @@ function manifoldInstanceUpdateActualSegment(
       );
 
       // Increment the ref count of the segment [{"type": "ManifoldInstance", "id": "id"}]
-      dispatch(segmentInstanceIncRefCount({ segment: segment }));
+      dispatch(
+         segmentInstanceIncRefCount({
+            segment: segment,
+            resource: { resourceType: ResourceType.Manifold_Instance, resourceId: manifold.id } as IResourceDefinition,
+         })
+      );
    } else {
       // One of two cases:
       //   1) Server asked the client to remove the segment and they did in which, and now we need to remove it from the actual
@@ -461,7 +463,15 @@ function manifoldInstanceUpdateActualSegment(
                segment: segment,
             })
          );
-         dispatch(segmentInstanceDecRefCount({ segment: segment }));
+         dispatch(
+            segmentInstanceDecRefCount({
+               segment: segment,
+               resource: {
+                  resourceType: ResourceType.Manifold_Instance,
+                  resourceId: manifold.id,
+               } as IResourceDefinition,
+            })
+         );
       } else {
          throw new Error(`Actual segment ${segmentAddress} does not match an attached segment`);
       }

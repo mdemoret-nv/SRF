@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2022-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2022-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -12,8 +12,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-list(APPEND CMAKE_MESSAGE_CONTEXT "mrc")
 
 # ##################################################################################################
 # - libmrc -----------------------------------------------------------------------------------------
@@ -130,8 +128,10 @@ add_library(libmrc
   src/public/core/logging.cpp
   src/public/core/thread.cpp
   src/public/coroutines/event.cpp
+  src/public/coroutines/io_scheduler.cpp
   src/public/coroutines/sync_wait.cpp
   src/public/coroutines/task_container.cpp
+  src/public/coroutines/test_scheduler.cpp
   src/public/coroutines/thread_local_context.cpp
   src/public/coroutines/thread_pool.cpp
   src/public/cuda/device_guard.cpp
@@ -170,6 +170,7 @@ add_library(libmrc
   src/public/runtime/remote_descriptor.cpp
   src/public/utils/bytes_to_string.cpp
   src/public/utils/library_utils.cpp
+  src/public/utils/string_utils.cpp
   src/public/utils/thread_utils.cpp
   src/public/utils/type_utils.cpp
 )
@@ -196,8 +197,7 @@ target_link_libraries(libmrc
     hwloc::hwloc
     prometheus-cpp::core # private in MR !199
     ucx::ucp
-    ucx::ucs # Not exported by UCXX
-    # ucx::ucp
+    ucx::ucs
     NodeJs::Node
     UV::uv
 )
@@ -214,26 +214,18 @@ target_include_directories(libmrc
 target_compile_definitions(libmrc
   PUBLIC
     $<$<BOOL:${MRC_BUILD_BENCHMARKS}>:MRC_ENABLE_BENCHMARKING>
-    $<$<CONFIG:DEBUG>:-DDEBUG> # Add DEBUG macro in debug mode (better than NDEBUG)
 )
 
-if (MRC_ENABLE_CODECOV)
+if(MRC_ENABLE_CODECOV)
   target_compile_definitions(libmrc INTERFACE "MRC_CODECOV_ENABLED")
 endif()
 
-# In debug mode, dont allow missing symbols
-# target_link_options(libmrc PUBLIC "$<$<CONFIG:Debug>:-Wl,--no-allow-shlib-undefined>")
-
 target_compile_features(libmrc PUBLIC cxx_std_20)
-
-# target_compile_options(libmrc PUBLIC "-fsanitize=address")
-# target_link_options(libmrc PUBLIC "-fsanitize=address")
 
 set_target_properties(libmrc PROPERTIES OUTPUT_NAME ${PROJECT_NAME})
 
 # ##################################################################################################
 # - install targets --------------------------------------------------------------------------------
-
 rapids_cmake_install_lib_dir(lib_dir)
 include(CPack)
 include(GNUInstallDirs)
@@ -241,7 +233,7 @@ include(GNUInstallDirs)
 install(
   TARGETS libmrc
   DESTINATION ${lib_dir}
-  EXPORT ${PROJECT_NAME}-core-exports
+  EXPORT ${PROJECT_NAME}-exports
   COMPONENT Core
 )
 
@@ -253,7 +245,6 @@ install(
 
 # ##################################################################################################
 # - subdirectories ---------------------------------------------------------------------------------
-
 if(MRC_BUILD_TESTS)
   add_subdirectory(tests)
 
@@ -266,7 +257,6 @@ endif()
 
 # ##################################################################################################
 # - install export ---------------------------------------------------------------------------------
-
 set(doc_string
   [=[
 Provide targets for mrc.
@@ -279,7 +269,7 @@ set(rapids_project_version_compat SameMinorVersion)
 # Need to explicitly set VERSION ${PROJECT_VERSION} here since rapids_cmake gets
 # confused with the `RAPIDS_VERSION` variable we use
 rapids_export(INSTALL ${PROJECT_NAME}
-  EXPORT_SET ${PROJECT_NAME}-core-exports
+  EXPORT_SET ${PROJECT_NAME}-exports
   GLOBAL_TARGETS libmrc
   VERSION ${PROJECT_VERSION}
   NAMESPACE mrc::
@@ -290,7 +280,7 @@ rapids_export(INSTALL ${PROJECT_NAME}
 # ##################################################################################################
 # - build export ----------------------------------------------------------------------------------
 rapids_export(BUILD ${PROJECT_NAME}
-  EXPORT_SET ${PROJECT_NAME}-core-exports
+  EXPORT_SET ${PROJECT_NAME}-exports
   GLOBAL_TARGETS libmrc
   VERSION ${PROJECT_VERSION}
   LANGUAGES C CXX CUDA
@@ -298,5 +288,3 @@ rapids_export(BUILD ${PROJECT_NAME}
   DOCUMENTATION doc_string
   FINAL_CODE_BLOCK code_string
 )
-
-list(POP_BACK CMAKE_MESSAGE_CONTEXT)

@@ -84,6 +84,14 @@ enum class SegmentStates : int
     Completed   = 3,
 };
 
+enum class ResourceType: int
+{
+   // This enum represents the type of resource that is being managed by the control plane.
+   Manifold_Instance = 0,
+   Segment_Instance = 1,
+};
+
+
 struct Executor;
 struct Worker;
 struct PipelineDefinition;
@@ -160,6 +168,7 @@ struct ControlPlaneTopLevelMessage : public ControlPlaneStateBase
     const ProtoT& m_message;
 };
 
+
 struct ResourceState : public ControlPlaneStateBase
 {
     ResourceState(const protos::ResourceState& message);
@@ -168,7 +177,9 @@ struct ResourceState : public ControlPlaneStateBase
 
     ResourceActualStatus actual_status() const;
 
-    int32_t ref_count() const;
+    const std::vector<protos::ResourceDefinition>& dependees() const;
+
+    const std::vector<protos::ResourceDefinition>& dependers() const;
 
   private:
     const protos::ResourceState& m_message;

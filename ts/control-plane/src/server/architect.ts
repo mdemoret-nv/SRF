@@ -192,6 +192,9 @@ class Architect implements ArchitectServiceImplementation {
          eventStream: (request, context) => {
             return this.do_eventStream(request, context);
          },
+         eventStreamUniDirect: (request, context) => {
+            return this.do_eventStream_uni_direct(request, context);
+         },
          ping: async (request, context): Promise<DeepPartial<PingResponse>> => {
             return await this.do_ping(request, context);
          },
@@ -209,6 +212,18 @@ class Architect implements ArchitectServiceImplementation {
 
       // Trigger a stop cancellation for any connected streams
       this._stop_controller.abort("Stop signaled");
+   }
+
+   public eventStreamUniDirect(
+      request: Event,
+      context: CallContext
+   ): ServerStreamingMethodResult<{
+      event?: EventType | undefined;
+      tag?: string | undefined;
+      message?: { value?: Uint8Array | undefined; typeUrl?: string | undefined } | undefined;
+      error?: { message?: string | undefined; code?: ErrorCode | undefined } | undefined;
+   }> {
+      return this.do_eventStream_uni_direct(request, context);
    }
 
    public eventStream(
@@ -232,6 +247,78 @@ class Architect implements ArchitectServiceImplementation {
    public onShutdownSignaled() {
       return firstValueFrom(this.shutdown_subject);
    }
+
+   private async *do_eventStream_uni_direct(request: Event, context: CallContext): AsyncIterable<DeepPartial<Event>> {
+      console.log(`Unidirectional Event stream created for ${context.peer}`);
+
+      const executor: IExecutor = Executor.create(context.peer).get_interface();
+      context.metadata.set("mrc-machine-id", executor.id.toString());
+
+      const store_update_sink = new AsyncSink<Event>();
+
+      // Subscribe to the store's next update
+      const store_unsub = this._store.subscribe(() => {
+         const state = this._store.getState();
+
+         // Remove the system object from the state
+         const { system: _, ...out_state } = {
+            ...state,
+            nonce: state.system.requestRunningNonce.toString(),
+            system: { extra: true },
+         };
+
+         if (state.system.requestRunning) {
+            console.log("Request is still running!");
+         }
+
+         // Push out the state update
+         store_update_sink.write(
+            packEvent(
+               EventType.ServerStateUpdate,
+               state.system.requestRunningNonce.toString(),
+               ControlPlaneState.create(out_state as ControlPlaneState)
+            )
+         );
+      });
+
+      // Create a new connection
+      this._store.dispatch(connectionsAdd(executor));
+
+      // Yield a connected event
+      yield Event.create({
+         event: EventType.ClientEventStreamConnected,
+         message: pack(
+            ClientConnectedResponse.create({
+               machineId: executor.id,
+            })
+         ),
+      });
+
+      try {
+         // Only handle outgoing events, no incoming stream processing
+         for await (const out_event of store_update_sink) {
+            console.log(
+               `Unidirectional stream: Sending event to ${executor.peerInfo}. EventID: ${eventTypeToJSON(out_event.event)}, Tag: ${
+                  out_event.tag
+               }`
+            );
+            yield out_event;
+         }
+      } catch (err) {
+         const error = ensureError(err);
+         console.log(`Error occurred in stream. Error: ${error.message}`);
+      } finally {
+         console.log(`All streams closed for ${executor.peerInfo}. Deleting connection: ${executor.id}.`);
+
+         // Ensure the other streams are cleaned up
+         store_unsub();
+         store_update_sink.end();
+
+         // Use the Lost Connection action to force all child objects to be removed too
+         await this._store.dispatch(connectionsDropOne(executor));
+      }
+   }
+
 
    private async *do_eventStream(
       stream: AsyncIterable<Event>,
@@ -415,7 +502,8 @@ class Architect implements ArchitectServiceImplementation {
                      state: {
                         requestedStatus: ResourceRequestedStatus.Requested_Initialized,
                         actualStatus: ResourceActualStatus.Actual_Unknown,
-                        refCount: 0,
+                        dependees: [],
+                        dependers: [],
                      },
                      assignedSegmentIds: [],
                   };

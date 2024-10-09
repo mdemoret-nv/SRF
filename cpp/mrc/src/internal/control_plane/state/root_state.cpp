@@ -155,9 +155,24 @@ ResourceActualStatus ResourceState::actual_status() const
     return static_cast<ResourceActualStatus>(m_message.actual_status());
 }
 
-int32_t ResourceState::ref_count() const
+const std::vector<mrc::protos::ResourceDefinition>& ResourceState::dependees() const
 {
-    return m_message.ref_count();
+    static std::vector<mrc::protos::ResourceDefinition> dependees_vector;
+    dependees_vector.clear();
+    for (const auto& dependee : m_message.dependees()) {
+        dependees_vector.push_back(dependee);
+    }
+    return dependees_vector;
+}
+
+const std::vector<mrc::protos::ResourceDefinition>& ResourceState::dependers() const
+{
+    static std::vector<mrc::protos::ResourceDefinition> dependers_vector;
+    dependers_vector.clear();
+    for (const auto& dependee : m_message.dependers()) {
+        dependers_vector.push_back(dependee);
+    }
+    return dependers_vector;
 }
 
 // Connection::Connection(std::shared_ptr<ControlPlaneNormalizedState> state, const protos::Connection& message) :

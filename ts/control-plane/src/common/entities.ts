@@ -19,9 +19,11 @@ import {
    SegmentInstance,
    SegmentOptions,
    Worker,
+   ResourceDefinition,
 } from "@mrc/proto/mrc/protos/architect_state";
 
 export type IResourceState = Omit<ResourceState, "$type">;
+export type IResourceDefinition = Omit<ResourceDefinition, "$type">;
 
 export interface IResourceInstance {
    id: string;

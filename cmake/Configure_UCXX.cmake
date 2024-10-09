@@ -22,8 +22,6 @@ function(morpheus_utils_configure_UCXX)
   morpheus_utils_assert_cpm_initialized()
   set(UCXX_VERSION "0.39.00" CACHE STRING "Which version of UCXX to use.")
 
-  find_package(ucx REQUIRED)
-
   # TODO(MDD): Switch back to the official UCXX repo once the following PR is merged:
   # https://github.com/rapidsai/ucxx/pull/166
   rapids_cpm_find(ucxx ${UCXX_VERSION}

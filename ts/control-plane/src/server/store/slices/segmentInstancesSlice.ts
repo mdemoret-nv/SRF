@@ -4,27 +4,30 @@ import { createSelector, createSlice, PayloadAction } from "@reduxjs/toolkit";
 import { connectionsRemove } from "@mrc/server/store/slices/connectionsSlice";
 import { pipelineInstancesRemove, pipelineInstancesSelectById } from "@mrc/server/store/slices/pipelineInstancesSlice";
 import { workersRemove } from "@mrc/server/store/slices/workersSlice";
-import { IManifoldInstance, ISegmentInstance } from "@mrc/common/entities";
+import { IManifoldInstance, IResourceDefinition, ISegmentInstance } from "@mrc/common/entities";
 import {
    ResourceActualStatus,
    resourceActualStatusToNumber,
    resourceRequestedStatusToNumber,
+   ResourceType,
 } from "@mrc/proto/mrc/protos/architect_state";
 import { pipelineDefinitionsSelectById } from "@mrc/server/store/slices/pipelineDefinitionsSlice";
-import { AppListenerAPI, startAppListening } from "@mrc/server/store/listener_middleware";
-import { generateId, sleep, yield_, yield_immediate } from "@mrc/common/utils";
+import { AppListenerAPI } from "@mrc/server/store/listener_middleware";
+import { yield_immediate } from "@mrc/common/utils";
 import { ResourceRequestedStatus } from "@mrc/proto/mrc/protos/architect_state";
 import {
    manifoldInstancesAdd,
    manifoldInstancesDetachRequestedSegment,
+   manifoldInstancesSelectById,
    manifoldInstancesSelectByNameAndPipelineDef,
    manifoldInstancesSelectByPipelineId,
    manifoldInstancesSyncSegments,
 } from "@mrc/server/store/slices/manifoldInstancesSlice";
-import { createWatcher, ResourceStateWatcherLambda } from "@mrc/server/store/resourceStateWatcher";
+import { createWatcher } from "@mrc/server/store/resourceStateWatcher";
 import { AppDispatch, AppGetState, RootState } from "@mrc/server/store/store";
 import { createWrappedEntityAdapter } from "@mrc/server/utils";
 import { ManifoldInstance } from "@mrc/common/models/manifold_instance";
+import { addDependee, removeDependee } from "@mrc/common/models/resource_state";
 
 const segmentInstancesAdapter = createWrappedEntityAdapter<ISegmentInstance>({
    selectId: (w) => w.id,
@@ -97,28 +100,27 @@ export const segmentInstancesSlice = createSlice({
          found.state.actualStatus = action.payload.status;
       },
 
-      incRefCount: (state, action: PayloadAction<{ segment: ISegmentInstance }>) => {
+      incRefCount: (state, action: PayloadAction<{ segment: ISegmentInstance; resource: IResourceDefinition }>) => {
          // TODO: refCount should be renamed to "dependees" and should be a list in the form of
          // [{"type": "ManifoldInstance", "id": "id"} ...]
          const found = segmentInstancesAdapter.getOne(state, action.payload.segment.id);
          if (!found) {
             throw new Error(`Segment Instance with ID: ${action.payload.segment.id} not found`);
          }
-
-         found.state.refCount++;
+         addDependee(action.payload.resource, found.state);
       },
 
-      decRefCount: (state, action: PayloadAction<{ segment: ISegmentInstance }>) => {
+      decRefCount: (state, action: PayloadAction<{ segment: ISegmentInstance; resource: IResourceDefinition }>) => {
          const found = segmentInstancesAdapter.getOne(state, action.payload.segment.id);
          if (!found) {
             throw new Error(`Segment Instance with ID: ${action.payload.segment.id} not found`);
-         } else if (found.state.refCount == 0) {
+         } else if (found.state.dependees.length == 0) {
             throw new Error(`Segment Instance with ID: ${action.payload.segment.id} has refCount 0`);
          }
 
-         found.state.refCount--;
+         removeDependee(action.payload.resource, found.state);
 
-         if (found.state.refCount == 0) {
+         if (found.state.dependees.length == 0) {
             // Segment has no dependees OK to stop now
             // TODO: We need some way to distinguish between a segment which simply has no more depenees and should run
             // to completion (ex. `Requested_Completed`), and a segment which already requested to stop.
@@ -184,7 +186,7 @@ export function segmentInstancesRequestStop(segmentInstanceId: string) {
          })
       );
 
-      if (found.state.refCount == 0) {
+      if (found.state.dependees.length == 0) {
          // Segment has no dependees OK to stop now
          dispatch(
             segmentInstancesSlice.actions.updateResourceRequestedState({
@@ -193,12 +195,15 @@ export function segmentInstancesRequestStop(segmentInstanceId: string) {
             })
          );
       } else {
-         Object.values(state.manifoldInstances.entities).forEach((m) => {
-            if (m !== undefined) {
-               if (found.segmentAddress in (m?.requestedInputSegments ?? {})) {
-                  dispatch(manifoldInstancesDetachRequestedSegment({ manifold: m, is_input: true, segment: found }));
-               } else if (found.segmentAddress in (m?.requestedOutputSegments ?? {})) {
-                  dispatch(manifoldInstancesDetachRequestedSegment({ manifold: m, is_input: false, segment: found }));
+         found.state.dependees.forEach((resource) => {
+            if (resource.resourceType === ResourceType.Manifold_Instance) {
+               const manifold = manifoldInstancesSelectById(state, resource.resourceId);
+               if (manifold) {
+                  if (found.segmentAddress in (manifold?.requestedInputSegments ?? {})) {
+                     dispatch(manifoldInstancesDetachRequestedSegment({ manifold, is_input: true, segment: found }));
+                  } else if (found.segmentAddress in (manifold?.requestedOutputSegments ?? {})) {
+                     dispatch(manifoldInstancesDetachRequestedSegment({ manifold, is_input: false, segment: found }));
+                  }
                }
             }
          });
@@ -209,8 +214,6 @@ export function segmentInstancesRequestStop(segmentInstanceId: string) {
 export function segmentInstancesDestroy(instance: ISegmentInstance) {
    // To allow the watchers to work, we need to add all segments individually
    return async (dispatch: AppDispatch, getState: AppGetState) => {
-      const state_snapshot = getState();
-
       // For any found workers, set the requested and actual states to avoid errors
       const found = segmentInstancesSelectById(getState(), instance.id);
 

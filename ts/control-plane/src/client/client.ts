@@ -225,7 +225,6 @@ export class MrcTestClient {
    //    // Call finalize to close the input stream and pull off any messages before exiting
    //    await this.unregisterConnection();
    // }
-
    public getServerState() {
       if (!this.store) {
          throw new Error("Client is not connected");

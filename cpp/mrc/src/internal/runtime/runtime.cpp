@@ -134,7 +134,6 @@ void Runtime::do_service_start(std::stop_token stop_token)
         if (system().options().enable_server())
         {
             m_control_plane_server = std::make_unique<control_plane::Server>(*m_sys_resources);
-
             this->child_service_start(m_control_plane_server, true);
         }
         else
