@@ -25,6 +25,7 @@ package mrc.protos;
 
 service Architect {
     rpc EventStream(stream Event) returns (stream Event) {}
+    rpc EventStreamUniDirect(Event) returns (stream Event) {}
 
     rpc Ping(PingRequest) returns (PingResponse) {}
     rpc Shutdown(ShutdownRequest) returns (ShutdownResponse) {}
